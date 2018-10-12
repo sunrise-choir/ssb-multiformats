@@ -4,3 +4,4 @@ extern crate base64;
 extern crate ssb_legacy_msg;
 
 pub mod multikey;
+pub mod multihash;

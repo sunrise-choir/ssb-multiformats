@@ -20,3 +20,7 @@ members = ["."]
 [[bin]]
 name = "roundtrip_key"
 path = "fuzz_targets/roundtrip_key.rs"
+
+[[bin]]
+name = "roundtrip_hash"
+path = "fuzz_targets/roundtrip_hash.rs"
