@@ -5,3 +5,5 @@ authors = ["AljoschaMeyer <mail@aljoscha-meyer.de>"]
 edition = "2018"
 
 [dependencies]
+base64 = "0.9.3"
+ssb-legacy-msg = { path = "../ssb-legacy-msg" }

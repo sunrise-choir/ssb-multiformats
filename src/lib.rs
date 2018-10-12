@@ -1,7 +1,6 @@
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn it_works() {
-        assert_eq!(2 + 2, 4);
-    }
-}
+//! Implementations for the [ssb multiformats](TODO).
+
+extern crate base64;
+extern crate ssb_legacy_msg;
+
+pub mod multikey;
