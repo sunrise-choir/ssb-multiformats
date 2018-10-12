@@ -3,10 +3,7 @@ use std::fmt;
 
 use base64;
 
-use ssb_legacy_msg::{
-    StringlyTypedError,
-    data::{Serialize, Serializer, Deserialize, Deserializer}
-};
+use ssb_legacy_msg_data::{StringlyTypedError, Serialize, Serializer, Deserialize, Deserializer};
 
 /// A multikey that owns its data.
 #[derive(Debug, PartialEq, Eq, Clone)]
@@ -46,7 +43,9 @@ impl Multikey {
                                 data.copy_from_slice(&key_raw[..]);
                                 return Ok(Multikey(_Multikey::Ed25519(data)));
                             }
-                            Some(suffix) => return Err(DecodeLegacyError::UnknownSuffix(suffix.to_vec())),
+                            Some(suffix) => {
+                                return Err(DecodeLegacyError::UnknownSuffix(suffix.to_vec()))
+                            }
                         }
                     }
 
@@ -114,7 +113,7 @@ pub enum DecodeLegacyError {
     /// The suffix declares an ed25519 key, but the data length does not match.
     ///
     /// Contains the decoded data (of length != 32).
-    Ed25519WrongSize(Vec<u8>)
+    Ed25519WrongSize(Vec<u8>),
 }
 
 
@@ -125,8 +124,12 @@ impl fmt::Display for DecodeLegacyError {
             &DecodeLegacyError::InvalidSigil(sigil) => write!(f, "Invalid sigil: {}", sigil),
             &DecodeLegacyError::InvalidBase64(ref err) => write!(f, "{}", err),
             &DecodeLegacyError::NoSuffix => write!(f, "No suffix"),
-            &DecodeLegacyError::UnknownSuffix(ref suffix) => write!(f, "UnknownSuffix: {:x?}", suffix),
-            &DecodeLegacyError::Ed25519WrongSize(ref data) => write!(f, "Data of wrong length: {:x?}", data),
+            &DecodeLegacyError::UnknownSuffix(ref suffix) => {
+                write!(f, "UnknownSuffix: {:x?}", suffix)
+            }
+            &DecodeLegacyError::Ed25519WrongSize(ref data) => {
+                write!(f, "Data of wrong length: {:x?}", data)
+            }
         }
 
     }

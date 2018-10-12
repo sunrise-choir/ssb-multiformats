@@ -3,10 +3,7 @@ use std::fmt;
 
 use base64;
 
-use ssb_legacy_msg::{
-    StringlyTypedError,
-    data::{Serialize, Serializer, Deserialize, Deserializer}
-};
+use ssb_legacy_msg_data::{StringlyTypedError, Serialize, Serializer, Deserialize, Deserializer};
 
 /// A multihash that owns its data.
 #[derive(Debug, PartialEq, Eq, Clone)]
@@ -16,7 +13,7 @@ pub struct Multihash(pub Target, _Multihash);
 /// What does the hash refer to?
 pub enum Target {
     Message,
-    Blob
+    Blob,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
@@ -34,12 +31,12 @@ impl Multihash {
             Some((0x25, tail)) => {
                 target = Target::Message;
                 s = tail;
-            },
+            }
             // Next character is `&`
             Some((0x26, tail)) => {
                 target = Target::Blob;
                 s = tail;
-            },
+            }
             Some((sigil, _)) => return Err(DecodeLegacyError::InvalidSigil(*sigil)),
             None => return Err(DecodeLegacyError::NotEnoughData),
         }
@@ -62,7 +59,9 @@ impl Multihash {
                                 data.copy_from_slice(&digest_raw[..]);
                                 return Ok(Multihash(target, _Multihash::Sha256(data)));
                             }
-                            Some(suffix) => return Err(DecodeLegacyError::UnknownSuffix(suffix.to_vec())),
+                            Some(suffix) => {
+                                return Err(DecodeLegacyError::UnknownSuffix(suffix.to_vec()))
+                            }
                         }
                     }
 
@@ -133,7 +132,7 @@ pub enum DecodeLegacyError {
     /// The suffix declares a sha256 digest, but the data length does not match.
     ///
     /// Contains the decoded data (of length != 32).
-    Sha256WrongSize(Vec<u8>)
+    Sha256WrongSize(Vec<u8>),
 }
 
 
@@ -144,8 +143,12 @@ impl fmt::Display for DecodeLegacyError {
             &DecodeLegacyError::InvalidSigil(sigil) => write!(f, "Invalid sigil: {}", sigil),
             &DecodeLegacyError::InvalidBase64(ref err) => write!(f, "{}", err),
             &DecodeLegacyError::NoSuffix => write!(f, "No suffix"),
-            &DecodeLegacyError::UnknownSuffix(ref suffix) => write!(f, "UnknownSuffix: {:x?}", suffix),
-            &DecodeLegacyError::Sha256WrongSize(ref data) => write!(f, "Data of wrong length: {:x?}", data),
+            &DecodeLegacyError::UnknownSuffix(ref suffix) => {
+                write!(f, "UnknownSuffix: {:x?}", suffix)
+            }
+            &DecodeLegacyError::Sha256WrongSize(ref data) => {
+                write!(f, "Data of wrong length: {:x?}", data)
+            }
         }
 
     }

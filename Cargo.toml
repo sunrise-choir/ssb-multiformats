@@ -6,4 +6,4 @@ edition = "2018"
 
 [dependencies]
 base64 = "0.9.3"
-ssb-legacy-msg = { path = "../ssb-legacy-msg" }
+ssb-legacy-msg-data = { path = "../ssb-legacy-msg-data" }
