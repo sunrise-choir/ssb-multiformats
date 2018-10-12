@@ -110,12 +110,11 @@ impl<'de> Deserialize<'de> for Multikey {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
         where D: Deserializer<'de>
     {
-        unimplemented!()
-        // let s = String::deserialize(deserializer)?;
-        // match Multikey::from_legacy(&s.as_bytes()) {
-        //     None => Err(D::Error::custom("invalid multikey")),
-        //     Some(k) => Ok(k),
-        // }
+        let s = String::deserialize(deserializer)?;
+        match Multikey::from_legacy(&s.as_bytes()) {
+            None => Err(D::Error::custom("invalid multikey")),
+            Some(k) => Ok(k),
+        }
     }
 }
 
