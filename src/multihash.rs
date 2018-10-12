@@ -153,9 +153,9 @@ impl fmt::Display for DecodeLegacyError {
 
 impl std::error::Error for DecodeLegacyError {}
 
-/// The legacy suffix indicating the ed25519 cryptographic primitive.
+/// The legacy suffix indicating the sha256 cryptographic primitive.
 const SHA256_SUFFIX: &'static str = "ed25519";
-/// Length of a base64 encoded ed25519 public key.
+/// Length of a base64 encoded sha256 hash digest.
 const SHA256_BASE64_LEN: usize = 44;
-/// Length of a legacy-encoded ssb `Multihash` which uses the ed25519 cryptographic primitive.
+/// Length of a legacy-encoded ssb `Multihash` which uses the sha256 cryptographic primitive.
 const SSB_SHA256_ENCODED_LEN: usize = SHA256_BASE64_LEN + 9;
