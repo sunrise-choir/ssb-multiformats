@@ -1,4 +1,5 @@
 //! Implementation of [ssb multikeys](TODO).
+use std::fmt;
 
 use base64;
 
@@ -6,17 +7,6 @@ use ssb_legacy_msg::{
     StringlyTypedError,
     data::{Serialize, Serializer, Deserialize, Deserializer}
 };
-
-// Get the next item from the iterator and make sure it is the last one.
-// Returns `None` if there was not exactly one remaining item.
-fn iter_last<T: Iterator>(t: &mut T) -> Option<T::Item> {
-    let item = t.next()?;
-
-    match t.next() {
-        None => Some(item),
-        _ => None,
-    }
-}
 
 /// A multikey that owns its data.
 #[derive(Debug, PartialEq, Eq, Clone)]
@@ -30,51 +20,39 @@ pub enum _Multikey {
 
 impl Multikey {
     /// Parses a [legacy encoding](TODO) into a `Multikey`.
-    pub fn from_legacy(mut s: &[u8]) -> Option<Multikey> {
-        match s.split_first()? {
+    pub fn from_legacy(mut s: &[u8]) -> Result<Multikey, DecodeLegacyError> {
+        match s.split_first() {
             // Next character is `@`
-            (0x40, tail) => s = tail,
-            _ => return None,
+            Some((0x40, tail)) => s = tail,
+            Some((sigil, _)) => return Err(DecodeLegacyError::InvalidSigil(*sigil)),
+            None => return Err(DecodeLegacyError::NotEnoughData),
         }
 
-        let mut iter = s.split(|byte| *byte == 0x2e);
+        let mut iter = s.split(|byte| *byte == 0x2e); // split at `.`
 
-        match base64::decode_config(iter.next()?, base64::STANDARD) {
-            Ok(key_raw) => {
-                match iter_last(&mut iter)? {
-                    // ed25519
-                    &[0x65, 0x64, 0x32, 0x35, 0x35, 0x31, 0x39] => {
-                        println!("internal: {:x?}", key_raw);
-                        if key_raw.len() != 32 {
-                            return None;
+        match iter.next() {
+            None => return Err(DecodeLegacyError::NotEnoughData),
+            Some(data) => {
+                match base64::decode_config(data, base64::STANDARD) {
+                    Ok(key_raw) => {
+                        match iter.next() {
+                            None => return Err(DecodeLegacyError::NoSuffix),
+                            Some(&[0x65, 0x64, 0x32, 0x35, 0x35, 0x31, 0x39]) => {
+                                if key_raw.len() != 32 {
+                                    return Err(DecodeLegacyError::Ed25519WrongSize(key_raw));
+                                }
+
+                                let mut data = [0u8; 32];
+                                data.copy_from_slice(&key_raw[..]);
+                                return Ok(Multikey(_Multikey::Ed25519(data)));
+                            }
+                            Some(suffix) => return Err(DecodeLegacyError::UnknownSuffix(suffix.to_vec())),
                         }
-
-                        println!("jhkljhkl: {:?}", base64::encode_config(&key_raw, base64::STANDARD));
-
-                        let mut data = [0u8; 32];
-                        data.copy_from_slice(&key_raw[..]);
-                        return Some(Multikey(_Multikey::Ed25519(data)));
                     }
 
-                    // Unknown suffix:
-                    _ => None,
-
-                    // // Unknown suffix
-                    // suffix => {
-                    //     match std::str::from_utf8(suffix) {
-                    //         Ok(tag_str) => {
-                    //             return Some(Multikey(_Multikey::UnknownLegacy {
-                    //                                      tag: tag_str.to_string(),
-                    //                                      data: key_raw,
-                    //                                  }))
-                    //         }
-                    //         _ => return None,
-                    //     }
-                    // }
+                    Err(base64_err) => Err(DecodeLegacyError::InvalidBase64(base64_err)),
                 }
             }
-
-            _ => None,
         }
     }
 
@@ -111,13 +89,50 @@ impl<'de> Deserialize<'de> for Multikey {
         where D: Deserializer<'de>
     {
         let s = String::deserialize(deserializer)?;
-        match Multikey::from_legacy(&s.as_bytes()) {
-            None => Err(D::Error::custom("invalid multikey")),
-            Some(k) => Ok(k),
-        }
+        Multikey::from_legacy(&s.as_bytes())
+            .map_err(|err| D::Error::custom(format!("Invalid multikey: {}", err)))
     }
 }
 
+/// Everything that can go wrong when decoding a `Multikey` from the legacy encoding.
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub enum DecodeLegacyError {
+    /// Input must contain at least four characters (sigil, data, dot, suffix).
+    NotEnoughData,
+    /// Input did not start with the `"@"` sigil.
+    ///
+    /// Contains the invalid first byte.
+    InvalidSigil(u8),
+    /// The base64 portion of the key was invalid.
+    InvalidBase64(base64::DecodeError),
+    /// No more data after the base64 portion of the encoding.
+    NoSuffix,
+    /// The suffix is not known to this ssb implementation.
+    ///
+    /// Contains the suffix.
+    UnknownSuffix(Vec<u8>),
+    /// The suffix declares an ed25519 key, but the data length does not match.
+    ///
+    /// Contains the decoded data (of length != 32).
+    Ed25519WrongSize(Vec<u8>)
+}
+
+
+impl fmt::Display for DecodeLegacyError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            &DecodeLegacyError::NotEnoughData => write!(f, "Not enough input data"),
+            &DecodeLegacyError::InvalidSigil(sigil) => write!(f, "Invalid sigil: {}", sigil),
+            &DecodeLegacyError::InvalidBase64(ref err) => write!(f, "{}", err),
+            &DecodeLegacyError::NoSuffix => write!(f, "No suffix"),
+            &DecodeLegacyError::UnknownSuffix(ref suffix) => write!(f, "UnknownSuffix: {:x?}", suffix),
+            &DecodeLegacyError::Ed25519WrongSize(ref data) => write!(f, "Data of wrong length: {:x?}", data),
+        }
+
+    }
+}
+
+impl std::error::Error for DecodeLegacyError {}
 
 /// The legacy suffix indicating the ed25519 cryptographic primitive.
 const ED25519_SUFFIX: &'static str = "ed25519";
