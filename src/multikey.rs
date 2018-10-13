@@ -73,6 +73,47 @@ impl Multikey {
             }
         }
     }
+
+    /// Deserialize a legacy signature corrsponding to this key type.
+    pub fn deserialize_signature(&self, s: &[u8]) -> Result<Vec<u8>, DecodeSignatureError> {
+        let mut iter = s.split(|byte| *byte == 0x2e); // split at `.`
+
+        match iter.next() {
+            None => return Err(DecodeSignatureError::NotEnoughData),
+            Some(data) => {
+                match base64::decode_config(data, base64::STANDARD) {
+                    Ok(sig_raw) => {
+                        match iter.next() {
+                            None => return Err(DecodeSignatureError::NoDotSig),
+                            Some(&[0x73, 0x69, 0x67]) => {
+                                match self.0 {
+                                    _Multikey::Ed25519(_) => {
+                                        match iter.next() {
+                                            None => return Err(DecodeSignatureError::NoSuffix),
+                                            Some(&[0x65, 0x64, 0x32, 0x35, 0x35, 0x31, 0x39]) => {
+                                                if sig_raw.len() != 64 {
+                                                    return Err(DecodeSignatureError::Ed25519WrongSize(sig_raw));
+                                                }
+                                                return Ok(sig_raw);
+                                            }
+                                            Some(suffix) => {
+                                                return Err(DecodeSignatureError::UnknownSuffix(suffix.to_vec()))
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            Some(other) => {
+                                return Err(DecodeSignatureError::NotDotSig(other.to_vec()))
+                            }
+                        }
+                    }
+
+                    Err(base64_err) => Err(DecodeSignatureError::InvalidBase64(base64_err)),
+                }
+            }
+        }
+    }
 }
 
 impl Serialize for Multikey {
@@ -116,7 +157,6 @@ pub enum DecodeLegacyError {
     Ed25519WrongSize(Vec<u8>),
 }
 
-
 impl fmt::Display for DecodeLegacyError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
@@ -136,6 +176,41 @@ impl fmt::Display for DecodeLegacyError {
 }
 
 impl std::error::Error for DecodeLegacyError {}
+
+/// Everything that can go wrong when decoding a signature from the legacy encoding.
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub enum DecodeSignatureError {
+    NotEnoughData,
+    InvalidBase64(base64::DecodeError),
+    NoDotSig,
+    NotDotSig(Vec<u8>),
+    NoSuffix,
+    UnknownSuffix(Vec<u8>),
+    Ed25519WrongSize(Vec<u8>),
+}
+
+impl fmt::Display for DecodeSignatureError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            &DecodeSignatureError::NotEnoughData => write!(f, "Not enough input data"),
+            &DecodeSignatureError::InvalidBase64(ref err) => write!(f, "{}", err),
+            &DecodeSignatureError::NoDotSig => write!(f, "No `.sig.`"),
+            &DecodeSignatureError::NotDotSig(ref data) => {
+                write!(f, "Expected `.sig.`, got {:?}", data)
+            }
+            &DecodeSignatureError::NoSuffix => write!(f, "No suffix"),
+            &DecodeSignatureError::UnknownSuffix(ref suffix) => {
+                write!(f, "UnknownSuffix: {:x?}", suffix)
+            }
+            &DecodeSignatureError::Ed25519WrongSize(ref data) => {
+                write!(f, "Data of wrong length: {:x?}", data)
+            }
+        }
+
+    }
+}
+
+impl std::error::Error for DecodeSignatureError {}
 
 /// The legacy suffix indicating the ed25519 cryptographic primitive.
 const ED25519_SUFFIX: &'static str = "ed25519";
