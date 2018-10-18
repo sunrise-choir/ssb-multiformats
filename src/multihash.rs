@@ -24,7 +24,9 @@ pub enum _Multihash {
 
 impl Multihash {
     /// Parses a [legacy encoding](TODO) into a `Multihash`.
-    pub fn from_legacy(mut s: &[u8]) -> Result<Multihash, DecodeLegacyError> {
+    pub fn from_legacy(mut s: &[u8]) -> Result<(Multihash, usize), DecodeLegacyError> {
+        let original_len = s.len();
+
         let target;
         match s.split_first() {
             // Next character is `%`
@@ -57,7 +59,8 @@ impl Multihash {
 
                                 let mut data = [0u8; 32];
                                 data.copy_from_slice(&digest_raw[..]);
-                                return Ok(Multihash(target, _Multihash::Sha256(data)));
+                                return Ok((Multihash(target, _Multihash::Sha256(data)),
+                                           original_len - s.len()));
                             }
                             Some(suffix) => {
                                 return Err(DecodeLegacyError::UnknownSuffix(suffix.to_vec()))
@@ -108,6 +111,7 @@ impl<'de> Deserialize<'de> for Multihash {
     {
         let s = String::deserialize(deserializer)?;
         Multihash::from_legacy(&s.as_bytes())
+            .map(|(mh, _)| mh)
             .map_err(|err| D::Error::custom(format!("Invalid multihash: {}", err)))
     }
 }

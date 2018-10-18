@@ -3,6 +3,7 @@ name = "ssb-multiformats"
 version = "0.1.0"
 authors = ["AljoschaMeyer <mail@aljoscha-meyer.de>"]
 edition = "2018"
+license = "AGPL-3.0"
 
 [dependencies]
 base64 = "0.9.3"

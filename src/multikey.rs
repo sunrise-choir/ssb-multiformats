@@ -17,7 +17,9 @@ pub enum _Multikey {
 
 impl Multikey {
     /// Parses a [legacy encoding](TODO) into a `Multikey`.
-    pub fn from_legacy(mut s: &[u8]) -> Result<Multikey, DecodeLegacyError> {
+    pub fn from_legacy(mut s: &[u8]) -> Result<(Multikey, usize), DecodeLegacyError> {
+        let original_len = s.len();
+
         match s.split_first() {
             // Next character is `@`
             Some((0x40, tail)) => s = tail,
@@ -41,7 +43,8 @@ impl Multikey {
 
                                 let mut data = [0u8; 32];
                                 data.copy_from_slice(&key_raw[..]);
-                                return Ok(Multikey(_Multikey::Ed25519(data)));
+                                return Ok((Multikey(_Multikey::Ed25519(data)),
+                                           original_len - s.len()));
                             }
                             Some(suffix) => {
                                 return Err(DecodeLegacyError::UnknownSuffix(suffix.to_vec()))
@@ -130,6 +133,7 @@ impl<'de> Deserialize<'de> for Multikey {
     {
         let s = String::deserialize(deserializer)?;
         Multikey::from_legacy(&s.as_bytes())
+            .map(|(mk, _)| mk)
             .map_err(|err| D::Error::custom(format!("Invalid multikey: {}", err)))
     }
 }
