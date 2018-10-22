@@ -1,3 +1,3 @@
 # SSB Multiformats
 
-Implementation of the [ssb multiformats](TODO) in rust.
+Implementation of the [ssb multiformats](https://spec.scuttlebutt.nz/datatypes.html) in rust.

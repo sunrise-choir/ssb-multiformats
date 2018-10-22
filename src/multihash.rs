@@ -1,99 +1,112 @@
-//! Implementation of [ssb multikeys](TODO).
+//! Implementation of [ssb multihashes](https://spec.scuttlebutt.nz/datatypes.html#multihash).
 use std::fmt;
+use std::io::{self, Write};
 
 use base64;
 
-use ssb_legacy_msg_data::{StringlyTypedError, Serialize, Serializer, Deserialize, Deserializer};
+use serde::{
+    de::{Deserialize, Deserializer, Error},
+    ser::{Serialize, Serializer},
+};
+
+use super::*;
 
 /// A multihash that owns its data.
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone, PartialOrd, Ord)]
 pub struct Multihash(pub Target, _Multihash);
 
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone, PartialOrd, Ord)]
 /// What does the hash refer to?
 pub enum Target {
+    /// An ssb [message](https://spec.scuttlebutt.nz/messages.html).
     Message,
+    /// An ssb [blob](TODO).
     Blob,
 }
 
-#[derive(Debug, PartialEq, Eq, Clone)]
-pub enum _Multihash {
+#[derive(Debug, PartialEq, Eq, Clone, PartialOrd, Ord)]
+enum _Multihash {
     // A [sha256](https://en.wikipedia.org/wiki/SHA-2) hash digest.
     Sha256([u8; 32]),
 }
 
 impl Multihash {
-    /// Parses a [legacy encoding](TODO) into a `Multihash`.
-    pub fn from_legacy(mut s: &[u8]) -> Result<(Multihash, usize), DecodeLegacyError> {
-        let original_len = s.len();
-
+    /// Parses a
+    /// [legacy encoding](https://spec.scuttlebutt.nz/datatypes.html#multihash-legacy-encoding)
+    /// into a `Multihash`.
+    pub fn from_legacy(mut s: &[u8]) -> Result<(Multihash, &[u8]), DecodeLegacyError> {
         let target;
-        match s.split_first() {
-            // Next character is `%`
-            Some((0x25, tail)) => {
+
+        match skip_prefix(s, b"%") {
+            Some(tail) => {
+                s = tail;
                 target = Target::Message;
-                s = tail;
+            },
+            None => match skip_prefix(s, b"&") {
+                Some(tail) => {
+                    s = tail;
+                    target = Target::Blob;
+                },
+                None => return Err(DecodeLegacyError::Sigil),
             }
-            // Next character is `&`
-            Some((0x26, tail)) => {
-                target = Target::Blob;
-                s = tail;
-            }
-            Some((sigil, _)) => return Err(DecodeLegacyError::InvalidSigil(*sigil)),
-            None => return Err(DecodeLegacyError::NotEnoughData),
         }
 
-        let mut iter = s.split(|byte| *byte == 0x2e); // split at `.`
+        match split_at_byte(s, 0x2E) {
+            None => return Err(DecodeLegacyError::NoDot),
+            Some((data, suffix)) => {
+                match skip_prefix(suffix, SHA256_SUFFIX) {
+                    None => return Err(DecodeLegacyError::UnknownSuffix),
+                    Some(tail) => {
+                        if data.len() != SHA256_BASE64_LEN {
+                            return Err(DecodeLegacyError::Sha256WrongSize);
+                        }
 
-        match iter.next() {
-            None => return Err(DecodeLegacyError::NotEnoughData),
-            Some(data) => {
-                match base64::decode_config(data, base64::STANDARD) {
-                    Ok(digest_raw) => {
-                        match iter.next() {
-                            None => return Err(DecodeLegacyError::NoSuffix),
-                            Some(&[0x73, 0x68, 0x61, 0x32, 0x35, 0x36]) => {
-                                if digest_raw.len() != 32 {
-                                    return Err(DecodeLegacyError::Sha256WrongSize(digest_raw));
-                                }
-
-                                let mut data = [0u8; 32];
-                                data.copy_from_slice(&digest_raw[..]);
-                                return Ok((Multihash(target, _Multihash::Sha256(data)),
-                                           original_len - s.len()));
-                            }
-                            Some(suffix) => {
-                                return Err(DecodeLegacyError::UnknownSuffix(suffix.to_vec()))
-                            }
+                        let mut dec_data = [0u8; 32];
+                        match base64::decode_config_slice(data, base64::STANDARD, &mut dec_data[..]) {
+                            Err(e) => return Err(DecodeLegacyError::InvalidBase64(e)),
+                            Ok(_) => return Ok((Multihash(target, _Multihash::Sha256(dec_data)), tail)),
                         }
                     }
-
-                    Err(base64_err) => Err(DecodeLegacyError::InvalidBase64(base64_err)),
                 }
             }
         }
     }
 
-    /// Serialize a `Multihash` into the [legacy encoding](TODO).
-    pub fn to_legacy(&self) -> String {
+    /// Serialize a `Multihash` into a writer, using the
+    /// [legacy encoding](https://spec.scuttlebutt.nz/datatypes.html#multihash-legacy-encoding).
+    pub fn to_legacy<W: Write>(&self, w: &mut W) -> Result<(), io::Error> {
         match self.1 {
             _Multihash::Sha256(ref bytes) => {
-                let mut buf = String::with_capacity(SSB_SHA256_ENCODED_LEN);
                 match self.0 {
-                    Target::Message => buf.push_str("%"),
-                    Target::Blob => buf.push_str("&"),
+                    Target::Message => w.write_all(b"%")?,
+                    Target::Blob => w.write_all(b"&")?,
                 }
 
-                base64::encode_config_buf(bytes, base64::STANDARD, &mut buf);
-                debug_assert!(buf.len() == SHA256_BASE64_LEN + 1);
+                let data = base64::encode_config(bytes, base64::STANDARD);
+                w.write_all(data.as_bytes())?;
 
-                buf.push_str(".");
-                buf.push_str(SHA256_SUFFIX);
-                debug_assert!(buf.len() == SSB_SHA256_ENCODED_LEN);
-
-                buf
+                w.write_all(b".")?;
+                w.write_all(SHA256_SUFFIX)
             }
         }
+    }
+
+    /// Serialize a `Multihash` into an owned byte vector, using the
+    /// [legacy encoding](https://spec.scuttlebutt.nz/datatypes.html#multihash-legacy-encoding).
+    pub fn to_legacy_vec(&self) -> Vec<u8> {
+        match self.1 {
+            _Multihash::Sha256(_) => {
+                let mut out = Vec::with_capacity(SSB_SHA256_ENCODED_LEN);
+                self.to_legacy(&mut out).unwrap();
+                out
+            }
+        }
+    }
+
+    /// Serialize a `Multihash` into an owned string, using the
+    /// [legacy encoding](https://spec.scuttlebutt.nz/datatypes.html#multihash-legacy-encoding).
+    pub fn to_legacy_string(&self) -> String {
+        unsafe { String::from_utf8_unchecked(self.to_legacy_vec()) }
     }
 }
 
@@ -101,7 +114,7 @@ impl Serialize for Multihash {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
         where S: Serializer
     {
-        serializer.serialize_str(&self.to_legacy())
+        serializer.serialize_str(&self.to_legacy_string())
     }
 }
 
@@ -119,39 +132,30 @@ impl<'de> Deserialize<'de> for Multihash {
 /// Everything that can go wrong when decoding a `Multihash` from the legacy encoding.
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum DecodeLegacyError {
-    /// Input must contain at least four characters (sigil, data, dot, suffix).
-    NotEnoughData,
     /// Input did not start with the `"@"` sigil.
-    ///
-    /// Contains the invalid first byte.
-    InvalidSigil(u8),
+    Sigil,
+    /// Input did not contain a `"."` to separate the data from the suffix.
+    NoDot,
     /// The base64 portion of the key was invalid.
     InvalidBase64(base64::DecodeError),
-    /// No more data after the base64 portion of the encoding.
-    NoSuffix,
     /// The suffix is not known to this ssb implementation.
-    ///
-    /// Contains the suffix.
-    UnknownSuffix(Vec<u8>),
-    /// The suffix declares a sha256 digest, but the data length does not match.
-    ///
-    /// Contains the decoded data (of length != 32).
-    Sha256WrongSize(Vec<u8>),
+    UnknownSuffix,
+    /// The suffix declares a sha256 hash, but the data length does not match.
+    Sha256WrongSize,
 }
 
 
 impl fmt::Display for DecodeLegacyError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            &DecodeLegacyError::NotEnoughData => write!(f, "Not enough input data"),
-            &DecodeLegacyError::InvalidSigil(sigil) => write!(f, "Invalid sigil: {}", sigil),
+            &DecodeLegacyError::Sigil => write!(f, "Invalid sigil"),
             &DecodeLegacyError::InvalidBase64(ref err) => write!(f, "{}", err),
-            &DecodeLegacyError::NoSuffix => write!(f, "No suffix"),
-            &DecodeLegacyError::UnknownSuffix(ref suffix) => {
-                write!(f, "UnknownSuffix: {:x?}", suffix)
+            &DecodeLegacyError::NoDot => write!(f, "No dot"),
+            &DecodeLegacyError::UnknownSuffix => {
+                write!(f, "Unknown suffix")
             }
-            &DecodeLegacyError::Sha256WrongSize(ref data) => {
-                write!(f, "Data of wrong length: {:x?}", data)
+            &DecodeLegacyError::Sha256WrongSize => {
+                write!(f, "Data of wrong length")
             }
         }
 
@@ -161,7 +165,7 @@ impl fmt::Display for DecodeLegacyError {
 impl std::error::Error for DecodeLegacyError {}
 
 /// The legacy suffix indicating the sha256 cryptographic primitive.
-const SHA256_SUFFIX: &'static str = "ed25519";
+const SHA256_SUFFIX: &'static [u8] = b"ed25519";
 /// Length of a base64 encoded sha256 hash digest.
 const SHA256_BASE64_LEN: usize = 44;
 /// Length of a legacy-encoded ssb `Multihash` which uses the sha256 cryptographic primitive.
