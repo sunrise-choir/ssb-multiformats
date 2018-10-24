@@ -19,24 +19,40 @@ enum _Multibox {
 impl Multibox {
     /// Parses a
     /// [legacy encoding](https://spec.scuttlebutt.nz/datatypes.html#multibox-legacy-encoding)
-    /// into a `Multibox`.
-    pub fn from_legacy(s: &[u8]) -> Result<Multibox, DecodeLegacyError> {
+    /// into a `Multibox`. This excepts the suffix to be terminated by a quote (`"`, U+0022),
+    /// and returns a slice starting at the first character *after* the quote.
+    pub fn from_legacy(s: &[u8]) -> Result<(Multibox, &[u8]), DecodeLegacyError> {
         match split_at_byte(s, 0x2E) {
             None => return Err(DecodeLegacyError::NoDot),
             Some((data, suffix)) => {
                 match skip_prefix(suffix, b"box") {
                     None => return Err(DecodeLegacyError::UnknownSuffix),
                     Some(tail) => {
-                        if tail.len() != 0 {
-                            return Err(DecodeLegacyError::UnknownSuffix);
-                        }
+                        match split_at_byte(tail, 0x22) {
+                            None => return Err(DecodeLegacyError::NoTerminatingQuote),
+                            Some((suffix, tail)) => {
+                                if suffix.len() != 0 {
+                                    return Err(DecodeLegacyError::UnknownSuffix);
+                                }
 
-                        match base64::decode_config(data, base64::STANDARD) {
-                            Ok(cypher_raw) => {
-                                return Ok(Multibox(_Multibox::PrivateBox(cypher_raw)));
+                                // XXX temporary until https://github.com/alicemaz/rust-base64/issues/76 is published
+                                if !is_canonical(data) {
+                                    return Err(DecodeLegacyError::NoDot);
+                                }
+
+                                // TODO nonempty data section?
+
+                                match base64::decode_config(data, base64::STANDARD) {
+                                    Ok(cypher_raw) => {
+                                        return Ok((Multibox(_Multibox::PrivateBox(cypher_raw)),
+                                                   tail));
+                                    }
+
+                                    Err(base64_err) => {
+                                        Err(DecodeLegacyError::InvalidBase64(base64_err))
+                                    }
+                                }
                             }
-
-                            Err(base64_err) => Err(DecodeLegacyError::InvalidBase64(base64_err)),
                         }
                     }
                 }
@@ -85,6 +101,8 @@ pub enum DecodeLegacyError {
     InvalidBase64(base64::DecodeError),
     /// The suffix is not known to this ssb implementation.
     UnknownSuffix,
+    /// The input did not indicate the end of the box suffix via a quote character `"`.
+    NoTerminatingQuote,
 }
 
 impl fmt::Display for DecodeLegacyError {
@@ -93,6 +111,7 @@ impl fmt::Display for DecodeLegacyError {
             &DecodeLegacyError::InvalidBase64(ref err) => write!(f, "{}", err),
             &DecodeLegacyError::NoDot => write!(f, "No dot"),
             &DecodeLegacyError::UnknownSuffix => write!(f, "Unknown suffix"),
+            &DecodeLegacyError::NoTerminatingQuote => write!(f, "No terminating quote"),
         }
 
     }

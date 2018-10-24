@@ -41,6 +41,15 @@ impl Multikey {
                             return Err(DecodeLegacyError::Ed25519WrongSize);
                         }
 
+                        if data[ED25519_PK_BASE64_LEN - 2] == b"="[0] {
+                            return Err(DecodeLegacyError::Ed25519WrongSize);
+                        }
+
+                        // XXX temporary until https://github.com/alicemaz/rust-base64/issues/76 is published
+                        if !is_canonical(data) {
+                            return Err(DecodeLegacyError::NoDot);
+                        }
+
                         let mut dec_data = [0u8; 32];
                         match base64::decode_config_slice(data, base64::STANDARD, &mut dec_data[..]) {
                             Err(e) => return Err(DecodeLegacyError::InvalidBase64(e)),
@@ -160,6 +169,15 @@ impl Multikey {
                                      Some(tail) => {
                                          if data.len() != ED25519_SIG_BASE64_LEN {
                                              return Err(DecodeSignatureError::Ed25519WrongSize);
+                                         }
+
+                                         if data[ED25519_SIG_BASE64_LEN - 2] != b"="[0] {
+                                             return Err(DecodeSignatureError::Ed25519WrongSize);
+                                         }
+
+                                         // XXX temporary until https://github.com/alicemaz/rust-base64/issues/76 is published
+                                         if !is_canonical(data) {
+                                             return Err(DecodeSignatureError::NoDot);
                                          }
 
                                          let mut dec_data = Vec::with_capacity(64);
