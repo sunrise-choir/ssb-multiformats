@@ -8,3 +8,4 @@ license = "AGPL-3.0"
 [dependencies]
 base64 = "0.9.3"
 serde = "1.0.80"
+# sodiumoxide = "0.1.0"

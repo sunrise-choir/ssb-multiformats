@@ -1,4 +1,5 @@
 //! Implementation of [ssb multikeys](https://spec.scuttlebutt.nz/datatypes.html#multikey).
+use std::cmp::{PartialEq, Eq, PartialOrd, Ord, Ordering};
 use std::fmt;
 use std::io::{self, Write};
 
@@ -143,19 +144,60 @@ impl fmt::Display for DecodeLegacyError {
                 write!(f, "Data of wrong length")
             }
         }
-
     }
 }
 
 impl std::error::Error for DecodeLegacyError {}
 
+/// A signature that owns its data.
+#[derive(Debug, PartialEq, Eq, Clone, PartialOrd, Ord)]
+pub struct Multisig(_Multisig);
+
+#[derive(Clone)]
+enum _Multisig {
+    // An [ed25519](http://ed25519.cr.yp.to/) signature.
+    Ed25519([u8; 64]),
+}
+
+impl fmt::Debug for _Multisig {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            _Multisig::Ed25519(ref data) => write!(f, "Ed25519 signature: {:?}", &data[..])
+        }
+    }
+}
+
+impl PartialEq for _Multisig {
+    fn eq(&self, other: &_Multisig) -> bool {
+        match (self, other) {
+            (_Multisig::Ed25519(ref a), _Multisig::Ed25519(ref b)) => &a[..] == &b[..],
+            // (_Multisig::Ed25519(_), _) => false,
+        }
+    }
+}
+
+impl Eq for _Multisig {}
+
+impl PartialOrd for _Multisig {
+    fn partial_cmp(&self, other: &_Multisig) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for _Multisig {
+    fn cmp(&self, other: &_Multisig) -> Ordering {
+        match (self, other) {
+            (_Multisig::Ed25519(ref a), _Multisig::Ed25519(ref b)) => a.cmp(&b[..]),
+            // (_Multisig::Ed25519(_), _) => Ordering::Less,
+        }
+    }
+}
+
 impl Multikey {
     /// Deserialize a legacy signature corrsponding to this key type.
-    ///
-    /// Returns the raw bytes of the decoded signature.
     pub fn sig_from_legacy<'a>(&self,
                                  s: &'a [u8])
-                                 -> Result<(Vec<u8>, &'a [u8]), DecodeSignatureError> {
+                                 -> Result<(Multisig, &'a [u8]), DecodeSignatureError> {
          match split_at_byte(s, 0x2E) {
              None => return Err(DecodeSignatureError::NoDot),
              Some((data, suffix)) => {
@@ -180,10 +222,10 @@ impl Multikey {
                                              return Err(DecodeSignatureError::NoDot);
                                          }
 
-                                         let mut dec_data = Vec::with_capacity(64);
+                                         let mut dec_data = [0u8; 64];
                                          match base64::decode_config_slice(data, base64::STANDARD, &mut dec_data[..]) {
                                              Err(e) => return Err(DecodeSignatureError::InvalidBase64(e)),
-                                             Ok(_) => return Ok((dec_data, tail)),
+                                             Ok(_) => return Ok((Multisig(_Multisig::Ed25519(dec_data)), tail)),
                                          }
                                      }
                                  }
@@ -194,13 +236,15 @@ impl Multikey {
              }
          }
     }
+}
 
+impl Multisig {
     /// Serialize a signature corresponding to this `Multikey` into a writer, in the appropriate
     /// form for a [legacy message](https://spec.scuttlebutt.nz/messages.html#legacy-json-encoding).
-    pub fn sig_to_legacy<W: Write>(&self, sig: &[u8], w: &mut W) -> Result<(), io::Error> {
+    pub fn to_legacy<W: Write>(&self, w: &mut W) -> Result<(), io::Error> {
         match self.0 {
-            _Multikey::Ed25519(_) => {
-                let data = base64::encode_config(sig, base64::STANDARD);
+            _Multisig::Ed25519(ref sig) => {
+                let data = base64::encode_config(&sig[..], base64::STANDARD);
                 w.write_all(data.as_bytes())?;
                 w.write_all(b".sig.ed25519")
             }
@@ -210,9 +254,9 @@ impl Multikey {
     /// Serialize a signature corresponding to this `Multikey` into an owned byte vector,
     /// in the appropriate form for a
     /// [legacy message](https://spec.scuttlebutt.nz/messages.html#legacy-json-encoding).
-    pub fn sig_to_legacy_vec(&self) -> Vec<u8> {
+    pub fn to_legacy_vec(&self) -> Vec<u8> {
         match self.0 {
-            _Multikey::Ed25519(_) => {
+            _Multisig::Ed25519(_) => {
                 let mut out = Vec::with_capacity(ED25519_SIG_BASE64_LEN);
                 self.to_legacy(&mut out).unwrap();
                 out
@@ -223,8 +267,13 @@ impl Multikey {
     /// Serialize a signature corresponding to this `Multikey` into an owned string,
     /// in the appropriate form for a
     /// [legacy message](https://spec.scuttlebutt.nz/messages.html#legacy-json-encoding).
-    pub fn sig_to_legacy_string(&self) -> String {
+    pub fn to_legacy_string(&self) -> String {
         unsafe { String::from_utf8_unchecked(self.to_legacy_vec()) }
+    }
+
+    /// Check whether the given signature of the given text was created by this key.
+    pub fn is_signature_correct(&self, sig: &[u8], data: &[u8]) -> bool {
+        unimplemented!()
     }
 }
 

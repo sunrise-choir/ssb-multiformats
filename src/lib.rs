@@ -3,6 +3,7 @@
 
 extern crate base64;
 extern crate serde;
+// extern crate sodiumoxide;
 
 pub mod multikey;
 pub mod multihash;
