@@ -4,7 +4,8 @@ use std::fmt;
 use std::io::{self, Write};
 
 use base64;
-
+use ring::signature;
+use untrusted::Input;
 use serde::{
     de::{Deserialize, Deserializer, Error},
     ser::{Serialize, Serializer},
@@ -102,8 +103,12 @@ impl Multikey {
     }
 
     /// Check whether the given signature of the given text was created by this key.
-    pub fn is_signature_correct(&self, sig: &[u8], data: &[u8]) -> bool {
-        unimplemented!()
+    pub fn is_signature_correct(&self, data: &[u8], sig: &Multisig) -> bool {
+        match (&self.0, &sig.0) {
+            (_Multikey::Ed25519(ref key), _Multisig::Ed25519(ref sig)) => {
+                signature::verify(&signature::ED25519, Input::from(&key[..]), Input::from(data), Input::from(sig)).is_ok()
+            }
+        }
     }
 }
 

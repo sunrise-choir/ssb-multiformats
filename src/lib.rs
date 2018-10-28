@@ -3,7 +3,10 @@
 
 extern crate base64;
 extern crate serde;
-// extern crate sodiumoxide;
+// extern crate ed25519_dalek;
+// extern crate sha2;
+extern crate ring;
+extern crate untrusted;
 
 pub mod multikey;
 pub mod multihash;
