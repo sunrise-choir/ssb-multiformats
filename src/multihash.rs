@@ -184,3 +184,15 @@ const SHA256_SUFFIX: &'static [u8] = b"sha256";
 const SHA256_BASE64_LEN: usize = 44;
 /// Length of a legacy-encoded ssb `Multihash` which uses the sha256 cryptographic primitive.
 const SSB_SHA256_ENCODED_LEN: usize = SHA256_BASE64_LEN + 9;
+
+#[test]
+fn test_from_legacy() {
+    assert!(Multihash::from_legacy(b"%MwjdLV95P7VqHfrgS49nScXsyIwJfL229e5OSKc+0rc=.sha256").is_ok());
+    assert!(Multihash::from_legacy(b"&MwjdLV95P7VqHfrgS49nScXsyIwJfL229e5OSKc+0rc=.sha256").is_ok());
+    assert!(Multihash::from_legacy(b"%MwjdLV95P7VqHfrgS49nScXsyIwJfL229e5OSKc+0rd=.sha256").is_err());
+    assert!(Multihash::from_legacy(b"@MwjdLV95P7VqHfrgS49nScXsyIwJfL229e5OSKc+0rc=.sha256").is_err());
+    assert!(Multihash::from_legacy(b"%MwjdLV95P7VqHfrgS49nScXsyIwJfL229e5OSKc+0rc=.tha256").is_err());
+    assert!(Multihash::from_legacy(b"%MwjdLV95P7VqHfrgS49nScXsyIwJfL229e5OSKc+0rc=sha256").is_err());
+    assert!(Multihash::from_legacy(b"%MwjdLV95P7VqHfrgS49nScXsyIwJfL229e5OSKc+0rc.sha256").is_err());
+    assert!(Multihash::from_legacy(b"%MwjdLV95P7VqHfrgS49nScXsyIwJfL229e5OSKc+0rc==.sha256").is_err());
+}

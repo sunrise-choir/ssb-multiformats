@@ -329,3 +329,14 @@ const ED25519_PK_BASE64_LEN: usize = 44;
 const SSB_ED25519_ENCODED_LEN: usize = ED25519_PK_BASE64_LEN + 9;
 /// Length of a base64 encoded ed25519 public key.
 const ED25519_SIG_BASE64_LEN: usize = 88;
+
+#[test]
+fn test_from_legacy() {
+    assert!(Multikey::from_legacy(b"@zurF8X68ArfRM71dF3mKh36W0xDM8QmOnAS5bYOq8hA=.ed25519").is_ok());
+    assert!(Multikey::from_legacy(b"@zurF8X68ArfRM71dF3mKh36W0xDM8QmOnAS5bYOq8hB=.ed25519").is_err());
+    assert!(Multikey::from_legacy(b"&zurF8X68ArfRM71dF3mKh36W0xDM8QmOnAS5bYOq8hA=.ed25519").is_err());
+    assert!(Multikey::from_legacy(b"@zurF8X68ArfRM71dF3mKh36W0xDM8QmOnAS5bYOq8hA=.dd25519").is_err());
+    assert!(Multikey::from_legacy(b"@zurF8X68ArfRM71dF3mKh36W0xDM8QmOnAS5bYOq8hA=ed25519").is_err());
+    assert!(Multikey::from_legacy(b"@zurF8X68ArfRM71dF3mKh36W0xDM8QmOnAS5bYOq8hA.ed25519").is_err());
+    assert!(Multikey::from_legacy(b"@zurF8X68ArfRM71dF3mKh36W0xDM8QmOnAS5bYOq8hA==.ed25519").is_err());
+}

@@ -116,3 +116,10 @@ impl fmt::Display for DecodeLegacyError {
 }
 
 impl std::error::Error for DecodeLegacyError {}
+
+#[test]
+fn test_from_legacy() {
+    assert!(Multibox::from_legacy(b"lA=.box\"").is_ok());
+    assert!(Multibox::from_legacy(b"lB=.box\"").is_err());
+    assert!(Multibox::from_legacy(b"lA=.boxx\"").is_err());
+}
