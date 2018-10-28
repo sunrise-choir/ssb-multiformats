@@ -40,8 +40,6 @@ impl Multibox {
                                     return Err(DecodeLegacyError::NoDot);
                                 }
 
-                                // TODO nonempty data section?
-
                                 match base64::decode_config(data, base64::STANDARD) {
                                     Ok(cypher_raw) => {
                                         return Ok((Multibox(_Multibox::PrivateBox(cypher_raw)),

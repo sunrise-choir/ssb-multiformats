@@ -31,6 +31,11 @@ enum _Multihash {
 }
 
 impl Multihash {
+    /// Take a sha256 digest and turn it into an opaque `Multihash`.
+    pub fn from_sha256(digest: [u8; 32], target: Target) -> Multihash {
+        Multihash(target, _Multihash::Sha256(digest))
+    }
+
     /// Parses a
     /// [legacy encoding](https://spec.scuttlebutt.nz/datatypes.html#multihash-legacy-encoding)
     /// into a `Multihash`.
@@ -174,7 +179,7 @@ impl fmt::Display for DecodeLegacyError {
 impl std::error::Error for DecodeLegacyError {}
 
 /// The legacy suffix indicating the sha256 cryptographic primitive.
-const SHA256_SUFFIX: &'static [u8] = b"ed25519";
+const SHA256_SUFFIX: &'static [u8] = b"sha256";
 /// Length of a base64 encoded sha256 hash digest.
 const SHA256_BASE64_LEN: usize = 44;
 /// Length of a legacy-encoded ssb `Multihash` which uses the sha256 cryptographic primitive.

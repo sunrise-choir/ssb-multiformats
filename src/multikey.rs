@@ -23,6 +23,11 @@ enum _Multikey {
 }
 
 impl Multikey {
+    /// Take an ed25519 public key and turn it into an opaque `Multikey`.
+    pub fn from_ed25519(pk: [u8; 32]) -> Multikey {
+        Multikey(_Multikey::Ed25519(pk))
+    }
+
     /// Parses a
     /// [legacy encoding](https://spec.scuttlebutt.nz/datatypes.html#multikey-legacy-encoding)
     /// into a `Multikey`, also returning the remaining input on success.
@@ -94,6 +99,11 @@ impl Multikey {
     /// [legacy encoding](https://spec.scuttlebutt.nz/datatypes.html#multikey-legacy-encoding).
     pub fn to_legacy_string(&self) -> String {
         unsafe { String::from_utf8_unchecked(self.to_legacy_vec()) }
+    }
+
+    /// Check whether the given signature of the given text was created by this key.
+    pub fn is_signature_correct(&self, sig: &[u8], data: &[u8]) -> bool {
+        unimplemented!()
     }
 }
 
@@ -239,6 +249,11 @@ impl Multikey {
 }
 
 impl Multisig {
+    /// Take an ed25519 signature and turn it into an opaque `Multisig`.
+    pub fn from_ed25519(sig: [u8; 64]) -> Multisig {
+        Multisig(_Multisig::Ed25519(sig))
+    }
+
     /// Serialize a signature corresponding to this `Multikey` into a writer, in the appropriate
     /// form for a [legacy message](https://spec.scuttlebutt.nz/messages.html#legacy-json-encoding).
     pub fn to_legacy<W: Write>(&self, w: &mut W) -> Result<(), io::Error> {
@@ -269,11 +284,6 @@ impl Multisig {
     /// [legacy message](https://spec.scuttlebutt.nz/messages.html#legacy-json-encoding).
     pub fn to_legacy_string(&self) -> String {
         unsafe { String::from_utf8_unchecked(self.to_legacy_vec()) }
-    }
-
-    /// Check whether the given signature of the given text was created by this key.
-    pub fn is_signature_correct(&self, sig: &[u8], data: &[u8]) -> bool {
-        unimplemented!()
     }
 }
 
