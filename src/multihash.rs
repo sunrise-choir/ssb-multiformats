@@ -70,6 +70,10 @@ impl Multihash {
                             return Err(DecodeLegacyError::Sha256WrongSize);
                         }
 
+                        if data[SHA256_BASE64_LEN - 1] != b"="[0] {
+                            return Err(DecodeLegacyError::Sha256WrongSize);
+                        }
+
                         let mut dec_data = [0u8; 32];
                         match base64::decode_config_slice(data, base64::STANDARD, &mut dec_data[..]) {
                             Err(e) => return Err(DecodeLegacyError::InvalidBase64(e)),

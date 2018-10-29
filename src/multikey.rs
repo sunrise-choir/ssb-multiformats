@@ -52,6 +52,10 @@ impl Multikey {
                             return Err(DecodeLegacyError::Ed25519WrongSize);
                         }
 
+                        if data[ED25519_PK_BASE64_LEN - 1] != b"="[0] {
+                            return Err(DecodeLegacyError::Ed25519WrongSize);
+                        }
+
                         let mut dec_data = [0u8; 32];
                         match base64::decode_config_slice(data, base64::STANDARD, &mut dec_data[..]) {
                             Err(e) => return Err(DecodeLegacyError::InvalidBase64(e)),

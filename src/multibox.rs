@@ -37,6 +37,10 @@ impl Multibox {
 
                                 match base64::decode_config(data, base64::STANDARD) {
                                     Ok(cypher_raw) => {
+                                        if data.len() % 4 != 0 {
+                                            return Err(DecodeLegacyError::NoncanonicPadding);
+                                        }
+
                                         return Ok((Multibox(_Multibox::PrivateBox(cypher_raw)),
                                                    tail));
                                     }
@@ -90,8 +94,10 @@ impl Multibox {
 pub enum DecodeLegacyError {
     /// Input did not contain a `"."` to separate the data from the suffix.
     NoDot,
-    /// The base64 portion of the key was invalid.
+    /// The base64 portion of the box was invalid.
     InvalidBase64(base64::DecodeError),
+    /// The base64 portion of the box did not use the correct amount of padding.
+    NoncanonicPadding,
     /// The suffix is not known to this ssb implementation.
     UnknownSuffix,
     /// The input did not indicate the end of the box suffix via a quote character `"`.
@@ -102,11 +108,11 @@ impl fmt::Display for DecodeLegacyError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             &DecodeLegacyError::InvalidBase64(ref err) => write!(f, "{}", err),
+            &DecodeLegacyError::NoncanonicPadding => write!(f, "Incorrect number of padding '='s"),
             &DecodeLegacyError::NoDot => write!(f, "No dot"),
             &DecodeLegacyError::UnknownSuffix => write!(f, "Unknown suffix"),
             &DecodeLegacyError::NoTerminatingQuote => write!(f, "No terminating quote"),
         }
-
     }
 }
 
@@ -114,7 +120,7 @@ impl std::error::Error for DecodeLegacyError {}
 
 #[test]
 fn test_from_legacy() {
-    assert!(Multibox::from_legacy(b"lA=.box\"").is_ok());
-    assert!(Multibox::from_legacy(b"lB=.box\"").is_err());
-    assert!(Multibox::from_legacy(b"lA=.boxx\"").is_err());
+    assert!(Multibox::from_legacy(b"lA==.box\"").is_ok());
+    assert!(Multibox::from_legacy(b"lB==.box\"").is_err());
+    assert!(Multibox::from_legacy(b"lA==.boxx\"").is_err());
 }
