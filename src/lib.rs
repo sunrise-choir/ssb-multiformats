@@ -3,8 +3,6 @@
 
 extern crate base64;
 extern crate serde;
-// extern crate ed25519_dalek;
-// extern crate sha2;
 extern crate ring;
 extern crate untrusted;
 
@@ -35,29 +33,5 @@ pub(crate) fn skip_prefix<'a>(input: &'a [u8], prefix: &[u8]) -> Option<&'a [u8]
         Some(&input[prefix.len()..])
     } else {
         None
-    }
-}
-
-// XXX temporary until https://github.com/alicemaz/rust-base64/issues/76 is published
-pub(crate) fn is_canonical(data: &[u8]) -> bool {
-    if data.len() < 2 {
-        return false;
-    }
-    if data[data.len() - 2] == b"="[0] {
-        if data.len() < 3 {
-            return false;
-        }
-        let b = data[data.len() - 3];
-        return b == b"A"[0] || b == b"Q"[0] || b == b"g"[0] || b == b"w"[0];
-    } else {
-        if data[data.len() - 1] == b"="[0] {
-            let b = data[data.len() - 2];
-            return b == b"A"[0] || b == b"E"[0] || b == b"I"[0] || b == b"M"[0] ||
-            b == b"Q"[0] || b == b"U"[0] || b == b"Y"[0] || b == b"c"[0] ||
-            b == b"g"[0] || b == b"k"[0] || b == b"o"[0] || b == b"s"[0] ||
-            b == b"w"[0] || b == b"0"[0] || b == b"4"[0] || b == b"8"[0];
-        } else {
-            true
-        }
     }
 }

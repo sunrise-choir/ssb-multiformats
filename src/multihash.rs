@@ -70,11 +70,6 @@ impl Multihash {
                             return Err(DecodeLegacyError::Sha256WrongSize);
                         }
 
-                        // XXX temporary until https://github.com/alicemaz/rust-base64/issues/76 is published
-                        if !is_canonical(data) {
-                            return Err(DecodeLegacyError::NoDot);
-                        }
-
                         let mut dec_data = [0u8; 32];
                         match base64::decode_config_slice(data, base64::STANDARD, &mut dec_data[..]) {
                             Err(e) => return Err(DecodeLegacyError::InvalidBase64(e)),

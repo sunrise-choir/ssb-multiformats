@@ -35,11 +35,6 @@ impl Multibox {
                                     return Err(DecodeLegacyError::UnknownSuffix);
                                 }
 
-                                // XXX temporary until https://github.com/alicemaz/rust-base64/issues/76 is published
-                                if !is_canonical(data) {
-                                    return Err(DecodeLegacyError::NoDot);
-                                }
-
                                 match base64::decode_config(data, base64::STANDARD) {
                                     Ok(cypher_raw) => {
                                         return Ok((Multibox(_Multibox::PrivateBox(cypher_raw)),
