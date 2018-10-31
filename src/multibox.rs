@@ -4,6 +4,8 @@ use std::io::{self, Write};
 
 use base64;
 
+use varu64;
+
 use super::*;
 
 #[derive(Debug, PartialEq, Eq, Clone, PartialOrd, Ord)]
@@ -86,6 +88,17 @@ impl Multibox {
     /// [legacy encoding](https://spec.scuttlebutt.nz/datatypes.html#multibox-legacy-encoding).
     pub fn to_legacy_string(&self) -> String {
         unsafe { String::from_utf8_unchecked(self.to_legacy_vec()) }
+    }
+
+    /// TODO wait for %EwwjtvHK7i1MFXnazWTjivGEhdAymQd0xR+BU82XpdM=.sha256 to resolve
+    pub fn to_compact<W: Write>(&self, w: &mut W) -> Result<(), io::Error> {
+        match self.0 {
+            _Multibox::PrivateBox(ref bytes) => {
+                w.write_all(&[0])?;
+                varu64::encode_write(bytes.len() as u64, &mut *w)?;
+                w.write_all(bytes)
+            }
+        }
     }
 }
 

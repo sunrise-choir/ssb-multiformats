@@ -12,6 +12,7 @@ use serde::{
 };
 
 use ctlv;
+use varu64;
 
 use super::*;
 
@@ -328,6 +329,34 @@ impl Multikey {
              }
          }
     }
+
+    /// Deserialize a legacy signature corrsponding to this key type.
+    pub fn sig_from_compact<'a>(&self, s: &'a[u8]) -> Result<(Multisig, &'a[u8]), DecodeCompactSigError> {
+        match varu64::decode(s) {
+            Ok((len, tail)) => {
+                if tail.len() < len as usize {
+                    return Err(DecodeCompactSigError::NotEnoughInput);
+                }
+
+                match self.0 {
+                    _Multikey::Ed25519(_) => {
+                        if len != 64 {
+                            return Err(DecodeCompactSigError::Ed25519WrongSize);
+                        }
+
+                        let mut data = [0u8; 64];
+                        for i in 0..64 {
+                            data[i] = s[i];
+                        }
+
+                        return Ok((Multisig(_Multisig::Ed25519(data)), &s[len as usize..]));
+                    }
+                }
+            }
+
+            Err((e, _)) => Err(DecodeCompactSigError::Length(e)),
+        }
+    }
 }
 
 impl Multisig {
@@ -336,7 +365,7 @@ impl Multisig {
         Multisig(_Multisig::Ed25519(sig))
     }
 
-    /// Serialize a signature corresponding to this `Multikey` into a writer, in the appropriate
+    /// Serialize a signature into a writer, in the appropriate
     /// form for a [legacy message](https://spec.scuttlebutt.nz/messages.html#legacy-json-encoding).
     pub fn to_legacy<W: Write>(&self, w: &mut W) -> Result<(), io::Error> {
         match self.0 {
@@ -348,7 +377,7 @@ impl Multisig {
         }
     }
 
-    /// Serialize a signature corresponding to this `Multikey` into an owned byte vector,
+    /// Serialize a signature into an owned byte vector,
     /// in the appropriate form for a
     /// [legacy message](https://spec.scuttlebutt.nz/messages.html#legacy-json-encoding).
     pub fn to_legacy_vec(&self) -> Vec<u8> {
@@ -361,11 +390,40 @@ impl Multisig {
         }
     }
 
-    /// Serialize a signature corresponding to this `Multikey` into an owned string,
+    /// Serialize a signature into an owned string,
     /// in the appropriate form for a
     /// [legacy message](https://spec.scuttlebutt.nz/messages.html#legacy-json-encoding).
     pub fn to_legacy_string(&self) -> String {
         unsafe { String::from_utf8_unchecked(self.to_legacy_vec()) }
+    }
+
+    /// Serialize a `Multisig` into a writer, in the appropriate form for a
+    /// [clmr](https://spec.scuttlebutt.nz/messages.html#compact-legacy-message-representation).
+    pub fn to_compact<W: Write>(&self, w: &mut W) -> Result<usize, io::Error> {
+        match self.0 {
+            _Multisig::Ed25519(ref bytes) => {
+                w.write_all(&[64])?;
+                w.write_all(bytes).map(|_| 65)
+            }
+        }
+    }
+
+    /// Serialize a `Multisig` into an owned byte vector, in the appropriate form for a
+    /// [clmr](https://spec.scuttlebutt.nz/messages.html#compact-legacy-message-representation).
+    pub fn to_compact_vec(&self) -> Vec<u8> {
+        match self.0 {
+            _Multisig::Ed25519(..) => {
+                let mut vec = Vec::with_capacity(65);
+                self.to_compact(&mut vec).unwrap();
+                vec
+            }
+        }
+    }
+
+    /// Serialize a `Multisig` into an owned string, in the appropriate form for a
+    /// [clmr](https://spec.scuttlebutt.nz/messages.html#compact-legacy-message-representation).
+    pub fn to_compact_string(&self) -> String {
+        unsafe { String::from_utf8_unchecked(self.to_compact_vec()) }
     }
 }
 
@@ -402,6 +460,33 @@ impl fmt::Display for DecodeSignatureError {
 }
 
 impl std::error::Error for DecodeSignatureError {}
+
+/// Everything that can go wrong when decoding a `Multisig` from the compact encoding.
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub enum DecodeCompactSigError {
+    /// The length varu64 was invalid.
+    Length(varu64::DecodeError),
+    /// Expected an ed25519 signature, but the data length does not match.
+    Ed25519WrongSize,
+    /// Less input than the length declared.
+    NotEnoughInput,
+}
+
+impl fmt::Display for DecodeCompactSigError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            &DecodeCompactSigError::Length(e) => e.fmt(f),
+            &DecodeCompactSigError::Ed25519WrongSize => {
+                write!(f, "Data of wrong length")
+            }
+            &DecodeCompactSigError::NotEnoughInput => {
+                write!(f, "Not enough input data")
+            }
+        }
+    }
+}
+
+impl std::error::Error for DecodeCompactSigError {}
 
 /// The legacy suffix indicating the ed25519 cryptographic primitive.
 const ED25519_SUFFIX: &'static [u8] = b"ed25519";
