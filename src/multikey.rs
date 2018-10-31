@@ -11,6 +11,8 @@ use serde::{
     ser::{Serialize, Serializer},
 };
 
+use ctlv;
+
 use super::*;
 
 /// A multikey that owns its data.
@@ -67,6 +69,31 @@ impl Multikey {
         }
     }
 
+    /// Parses a
+    /// [compact encoding](https://spec.scuttlebutt.nz/datatypes.html#multikey-compact-encoding)
+    /// into a `Multikey`, also returning the remaining input on success.
+    pub fn from_compact(s: &[u8]) -> Result<(Multikey, &[u8]), DecodeCompactError> {
+        match ctlv::Ctlv::decode(s) {
+            Ok((tlv, tail)) => {
+                match tlv.type_ {
+                    ED25519_ID => {
+                        debug_assert!(tlv.value.len() == 32);
+
+                        let mut data = [0u8; 32];
+                        for i in 0..32 {
+                            data[i] = tlv.value[i];
+                        }
+
+                        Ok((Multikey(_Multikey::Ed25519(data)), tail))
+                    }
+                    _ => Err(DecodeCompactError::UnknownPrimitive(tlv.type_))
+                }
+            }
+
+            Err((e, _)) => Err(DecodeCompactError::Ctlv(e))
+        }
+    }
+
     /// Serialize a `Multikey` into a writer, using the
     /// [legacy encoding](https://spec.scuttlebutt.nz/datatypes.html#multikey-legacy-encoding).
     pub fn to_legacy<W: Write>(&self, w: &mut W) -> Result<(), io::Error> {
@@ -99,6 +126,40 @@ impl Multikey {
     /// [legacy encoding](https://spec.scuttlebutt.nz/datatypes.html#multikey-legacy-encoding).
     pub fn to_legacy_string(&self) -> String {
         unsafe { String::from_utf8_unchecked(self.to_legacy_vec()) }
+    }
+
+    /// Serialize a `Multikey` into a writer, using the
+    /// [compact encoding](https://spec.scuttlebutt.nz/datatypes.html#multikey-compact-encoding).
+    pub fn to_compact<W: Write>(&self, w: W) -> Result<usize, io::Error> {
+        match self.0 {
+            _Multikey::Ed25519(ref bytes) => {
+                let tlv = ctlv::CtlvRef {
+                    type_: ED25519_ID,
+                    value: &bytes[..]
+                };
+                tlv.encode_write(w)
+            }
+        }
+    }
+
+    /// Serialize a `Multikey` into an owned byte vector, using the
+    /// [compact encoding](https://spec.scuttlebutt.nz/datatypes.html#multikey-compact-encoding).
+    pub fn to_compact_vec(&self) -> Vec<u8> {
+        match self.0 {
+            _Multikey::Ed25519(ref bytes) => {
+                let tlv = ctlv::CtlvRef {
+                    type_: ED25519_ID,
+                    value: &bytes[..]
+                };
+                tlv.encode_vec()
+            }
+        }
+    }
+
+    /// Serialize a `Multikey` into an owned string, using the
+    /// [compact encoding](https://spec.scuttlebutt.nz/datatypes.html#multikey-compact-encoding).
+    pub fn to_compact_string(&self) -> String {
+        unsafe { String::from_utf8_unchecked(self.to_compact_vec()) }
     }
 
     /// Check whether the given signature of the given text was created by this key.
@@ -162,6 +223,28 @@ impl fmt::Display for DecodeLegacyError {
 }
 
 impl std::error::Error for DecodeLegacyError {}
+
+/// Everything that can go wrong when decoding a `Multikey` from the compact encoding.
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub enum DecodeCompactError {
+    /// The cryptographic primitive is not known to this ssb implementation.
+    UnknownPrimitive(u64),
+    /// The ctlv encoding was invalid
+    Ctlv(ctlv::DecodeError),
+}
+
+impl fmt::Display for DecodeCompactError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            &DecodeCompactError::UnknownPrimitive(prim) => {
+                write!(f, "Unknown primitive: {}", prim)
+            }
+            &DecodeCompactError::Ctlv(e) => e.fmt(f),
+        }
+    }
+}
+
+impl std::error::Error for DecodeCompactError {}
 
 /// A signature that owns its data.
 #[derive(Debug, PartialEq, Eq, Clone, PartialOrd, Ord)]
@@ -328,6 +411,9 @@ const ED25519_PK_BASE64_LEN: usize = 44;
 const SSB_ED25519_ENCODED_LEN: usize = ED25519_PK_BASE64_LEN + 9;
 /// Length of a base64 encoded ed25519 public key.
 const ED25519_SIG_BASE64_LEN: usize = 88;
+
+/// Compact format id of the ed25519 primitive.
+const ED25519_ID: u64 = 40;
 
 #[test]
 fn test_from_legacy() {

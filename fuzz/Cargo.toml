@@ -28,3 +28,11 @@ path = "fuzz_targets/roundtrip_hash.rs"
 [[bin]]
 name = "roundtrip_box"
 path = "fuzz_targets/roundtrip_box.rs"
+
+[[bin]]
+name = "roundtrip_key_compact"
+path = "fuzz_targets/roundtrip_key_compact.rs"
+
+[[bin]]
+name = "roundtrip_hash_compact"
+path = "fuzz_targets/roundtrip_hash_compact.rs"

@@ -15,7 +15,7 @@ use super::*;
 #[derive(Debug, PartialEq, Eq, Clone, PartialOrd, Ord)]
 pub struct Multihash(pub Target, _Multihash);
 
-#[derive(Debug, PartialEq, Eq, Clone, PartialOrd, Ord)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy, PartialOrd, Ord)]
 /// What does the hash refer to?
 pub enum Target {
     /// An ssb [message](https://spec.scuttlebutt.nz/messages.html).
@@ -85,6 +85,35 @@ impl Multihash {
         }
     }
 
+    /// Parses a
+    /// [compact encoding](https://spec.scuttlebutt.nz/datatypes.html#multihash-compact-encoding)
+    /// into a `Multihash`, also returning the remaining input on success.
+    pub fn from_compact(s: &[u8]) -> Result<(Multihash, &[u8]), DecodeCompactError> {
+        match ctlv::Ctlv::decode(s) {
+            Ok((tlv, tail)) => {
+                match tlv.type_ {
+                    SHA256_ID_MSG | SHA256_ID_BLOB => {
+                        debug_assert!(tlv.value.len() == 32);
+
+                        let mut data = [0u8; 32];
+                        for i in 0..32 {
+                            data[i] = tlv.value[i];
+                        }
+
+                        if tlv.type_ == SHA256_ID_MSG {
+                            Ok((Multihash(Target::Message, _Multihash::Sha256(data)), tail))
+                        } else {
+                            Ok((Multihash(Target::Blob, _Multihash::Sha256(data)), tail))
+                        }
+                    }
+                    _ => Err(DecodeCompactError::UnknownPrimitive(tlv.type_))
+                }
+            }
+
+            Err((e, _)) => Err(DecodeCompactError::Ctlv(e))
+        }
+    }
+
     /// Serialize a `Multihash` into a writer, using the
     /// [legacy encoding](https://spec.scuttlebutt.nz/datatypes.html#multihash-legacy-encoding).
     pub fn to_legacy<W: Write>(&self, w: &mut W) -> Result<(), io::Error> {
@@ -120,6 +149,56 @@ impl Multihash {
     /// [legacy encoding](https://spec.scuttlebutt.nz/datatypes.html#multihash-legacy-encoding).
     pub fn to_legacy_string(&self) -> String {
         unsafe { String::from_utf8_unchecked(self.to_legacy_vec()) }
+    }
+
+    /// Serialize a `Multihash` into a writer, using the
+    /// [compact encoding](https://spec.scuttlebutt.nz/datatypes.html#multihash-compact-encoding).
+    pub fn to_compact<W: Write>(&self, w: W) -> Result<usize, io::Error> {
+        match (self.0, &self.1) {
+            (Target::Message, _Multihash::Sha256(ref bytes)) => {
+                let tlv = ctlv::CtlvRef {
+                    type_: SHA256_ID_MSG,
+                    value: &bytes[..]
+                };
+                tlv.encode_write(w)
+            }
+
+            (Target::Blob, _Multihash::Sha256(ref bytes)) => {
+                let tlv = ctlv::CtlvRef {
+                    type_: SHA256_ID_BLOB,
+                    value: &bytes[..]
+                };
+                tlv.encode_write(w)
+            }
+        }
+    }
+
+    /// Serialize a `Multihash` into an owned byte vector, using the
+    /// [compact encoding](https://spec.scuttlebutt.nz/datatypes.html#multihash-compact-encoding).
+    pub fn to_compact_vec(&self) -> Vec<u8> {
+        match (self.0, &self.1) {
+            (Target::Message, _Multihash::Sha256(ref bytes)) => {
+                let tlv = ctlv::CtlvRef {
+                    type_: SHA256_ID_MSG,
+                    value: &bytes[..]
+                };
+                tlv.encode_vec()
+            }
+
+            (Target::Blob, _Multihash::Sha256(ref bytes)) => {
+                let tlv = ctlv::CtlvRef {
+                    type_: SHA256_ID_BLOB,
+                    value: &bytes[..]
+                };
+                tlv.encode_vec()
+            }
+        }
+    }
+
+    /// Serialize a `Multihash` into an owned string, using the
+    /// [compact encoding](https://spec.scuttlebutt.nz/datatypes.html#multihash-compact-encoding).
+    pub fn to_compact_string(&self) -> String {
+        unsafe { String::from_utf8_unchecked(self.to_compact_vec()) }
     }
 }
 
@@ -177,12 +256,39 @@ impl fmt::Display for DecodeLegacyError {
 
 impl std::error::Error for DecodeLegacyError {}
 
+/// Everything that can go wrong when decoding a `Multikey` from the compact encoding.
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub enum DecodeCompactError {
+    /// The cryptographic primitive is not known to this ssb implementation.
+    UnknownPrimitive(u64),
+    /// The ctlv encoding was invalid
+    Ctlv(ctlv::DecodeError),
+}
+
+impl fmt::Display for DecodeCompactError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            &DecodeCompactError::UnknownPrimitive(prim) => {
+                write!(f, "Unknown primitive: {}", prim)
+            }
+            &DecodeCompactError::Ctlv(e) => e.fmt(f),
+        }
+    }
+}
+
+impl std::error::Error for DecodeCompactError {}
+
 /// The legacy suffix indicating the sha256 cryptographic primitive.
 const SHA256_SUFFIX: &'static [u8] = b"sha256";
 /// Length of a base64 encoded sha256 hash digest.
 const SHA256_BASE64_LEN: usize = 44;
 /// Length of a legacy-encoded ssb `Multihash` which uses the sha256 cryptographic primitive.
 const SSB_SHA256_ENCODED_LEN: usize = SHA256_BASE64_LEN + 9;
+
+/// Compact format id of the sha256 primitive for messages.
+const SHA256_ID_MSG: u64 = 40;
+/// Compact format id of the sha256 primitive for blobs.
+const SHA256_ID_BLOB: u64 = 41;
 
 #[test]
 fn test_from_legacy() {
