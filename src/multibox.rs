@@ -128,6 +128,22 @@ impl Multibox {
             }
         }
     }
+
+    /// TODO wait for %EwwjtvHK7i1MFXnazWTjivGEhdAymQd0xR+BU82XpdM=.sha256 to resolve
+    pub fn to_compact_vec(&self) -> Vec<u8> {
+        match self.0 {
+            _Multibox::PrivateBox(ref bytes) => {
+                let mut vec = Vec::with_capacity(1 + bytes.len());
+                self.to_compact(&mut vec).unwrap();
+                vec
+            }
+        }
+    }
+
+    /// TODO wait for %EwwjtvHK7i1MFXnazWTjivGEhdAymQd0xR+BU82XpdM=.sha256 to resolve
+    pub fn to_compact_string(&self) -> String {
+        unsafe { String::from_utf8_unchecked(self.to_compact_vec()) }
+    }
 }
 
 /// Everything that can go wrong when decoding a `Multibox` from the legacy encoding.
