@@ -402,8 +402,7 @@ impl Multisig {
     pub fn to_compact<W: Write>(&self, w: &mut W) -> Result<usize, io::Error> {
         match self.0 {
             _Multisig::Ed25519(ref bytes) => {
-                w.write_all(&[64])?;
-                w.write_all(bytes).map(|_| 65)
+                w.write_all(bytes).map(|_| 64)
             }
         }
     }
@@ -413,7 +412,7 @@ impl Multisig {
     pub fn to_compact_vec(&self) -> Vec<u8> {
         match self.0 {
             _Multisig::Ed25519(..) => {
-                let mut vec = Vec::with_capacity(65);
+                let mut vec = Vec::with_capacity(64);
                 self.to_compact(&mut vec).unwrap();
                 vec
             }
