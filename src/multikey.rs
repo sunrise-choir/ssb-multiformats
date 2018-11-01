@@ -346,10 +346,10 @@ impl Multikey {
 
                         let mut data = [0u8; 64];
                         for i in 0..64 {
-                            data[i] = s[i];
+                            data[i] = tail[i];
                         }
 
-                        return Ok((Multisig(_Multisig::Ed25519(data)), &s[len as usize..]));
+                        return Ok((Multisig(_Multisig::Ed25519(data)), &tail[len as usize..]));
                     }
                 }
             }
@@ -402,7 +402,8 @@ impl Multisig {
     pub fn to_compact<W: Write>(&self, w: &mut W) -> Result<usize, io::Error> {
         match self.0 {
             _Multisig::Ed25519(ref bytes) => {
-                w.write_all(bytes).map(|_| 64)
+                w.write_all(&[64])?;
+                w.write_all(bytes).map(|_| 65)
             }
         }
     }
@@ -412,7 +413,7 @@ impl Multisig {
     pub fn to_compact_vec(&self) -> Vec<u8> {
         match self.0 {
             _Multisig::Ed25519(..) => {
-                let mut vec = Vec::with_capacity(64);
+                let mut vec = Vec::with_capacity(65);
                 self.to_compact(&mut vec).unwrap();
                 vec
             }
