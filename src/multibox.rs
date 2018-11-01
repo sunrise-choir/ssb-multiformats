@@ -91,6 +91,34 @@ impl Multibox {
     }
 
     /// TODO wait for %EwwjtvHK7i1MFXnazWTjivGEhdAymQd0xR+BU82XpdM=.sha256 to resolve
+    pub fn from_compact(s: &[u8]) -> Result<(Multibox, &[u8]), DecodeCompactError> {
+        match varu64::decode(s) {
+            Ok((type_, tail)) => {
+                if type_ != 0 {
+                    panic!() // TODO XXX temporary
+                }
+
+                match varu64::decode(tail) {
+                    Ok((len, tail)) => {
+                        if tail.len() < len as usize {
+                            return Err(DecodeCompactError::NotEnoughInput);
+                        }
+
+                        let mut data = Vec::with_capacity(len as usize);
+                        data.extend_from_slice(&tail[..len as usize]);
+
+                        return Ok((Multibox(_Multibox::PrivateBox(data)), &tail[len as usize..]));
+                    }
+
+                    Err((e, _)) => Err(DecodeCompactError::InvalidLength(e)),
+                }
+            }
+
+            Err((e, _)) => return Err(DecodeCompactError::InvalidType(e)),
+        }
+    }
+
+    /// TODO wait for %EwwjtvHK7i1MFXnazWTjivGEhdAymQd0xR+BU82XpdM=.sha256 to resolve
     pub fn to_compact<W: Write>(&self, w: &mut W) -> Result<(), io::Error> {
         match self.0 {
             _Multibox::PrivateBox(ref bytes) => {
@@ -130,6 +158,29 @@ impl fmt::Display for DecodeLegacyError {
 }
 
 impl std::error::Error for DecodeLegacyError {}
+
+/// Everything that can go wrong when decoding a `Multibox` from the compact encoding.
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub enum DecodeCompactError {
+    /// The type indicator was invalid.
+    InvalidType(varu64::DecodeError),
+    /// The length indicator was invalid.
+    InvalidLength(varu64::DecodeError),
+    /// Needed more input to continue decoding.
+    NotEnoughInput,
+}
+
+impl fmt::Display for DecodeCompactError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            &DecodeCompactError::InvalidType(e) => write!(f, "Invalid type: {}", e),
+            &DecodeCompactError::InvalidLength(e) => write!(f, "Invalid length: {}", e),
+            &DecodeCompactError::NotEnoughInput => write!(f, "Not enough input"),
+        }
+    }
+}
+
+impl std::error::Error for DecodeCompactError {}
 
 #[test]
 fn test_from_legacy() {
