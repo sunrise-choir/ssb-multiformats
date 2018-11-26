@@ -129,6 +129,19 @@ impl Multikey {
         unsafe { String::from_utf8_unchecked(self.to_legacy_vec()) }
     }
 
+    /// Returns how many bytes the compact encoding of this `Multikey` takes up.
+    pub fn encoding_length(&self) -> usize {
+        match self.0 {
+            _Multikey::Ed25519(ref bytes) => {
+                let tlv = ctlv::CtlvRef {
+                    type_: ED25519_ID,
+                    value: &bytes[..]
+                };
+                tlv.encoding_length()
+            }
+        }
+    }
+
     /// Serialize a `Multikey` into a writer, using the
     /// [compact encoding](https://spec.scuttlebutt.nz/datatypes.html#multikey-compact-encoding).
     pub fn to_compact<W: Write>(&self, w: W) -> Result<usize, io::Error> {

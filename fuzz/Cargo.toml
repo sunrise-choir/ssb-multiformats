@@ -26,6 +26,10 @@ name = "roundtrip_hash"
 path = "fuzz_targets/roundtrip_hash.rs"
 
 [[bin]]
+name = "roundtrip_feed"
+path = "fuzz_targets/roundtrip_feed.rs"
+
+[[bin]]
 name = "roundtrip_box"
 path = "fuzz_targets/roundtrip_box.rs"
 
@@ -36,3 +40,7 @@ path = "fuzz_targets/roundtrip_key_compact.rs"
 [[bin]]
 name = "roundtrip_hash_compact"
 path = "fuzz_targets/roundtrip_hash_compact.rs"
+
+[[bin]]
+name = "roundtrip_feed_compact"
+path = "fuzz_targets/roundtrip_feed_compact.rs"

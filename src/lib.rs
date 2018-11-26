@@ -11,6 +11,7 @@ extern crate ctlv;
 pub mod multikey;
 pub mod multihash;
 pub mod multibox;
+pub mod multifeed;
 
 ///////////////////////////////////////////////////////////////////////////////
 // A bunch of helper functions used throughout the crate for parsing legacy encodings.

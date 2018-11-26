@@ -170,14 +170,14 @@ impl Multihash {
     /// Serialize a `Multihash` into a writer, using the
     /// [compact encoding](https://spec.scuttlebutt.nz/datatypes.html#multihash-compact-encoding).
     pub fn to_compact<W: Write>(&self, mut w: W) -> Result<usize, io::Error> {
-        varu64::encode_write(self.0.id(), &mut w)?;
+        let target_len = varu64::encode_write(self.0.id(), &mut w)?;
         match &self.1 {
             _Multihash::Sha256(ref bytes) => {
                 let tlv = ctlv::CtlvRef {
                     type_: SHA256_ID,
                     value: &bytes[..]
                 };
-                tlv.encode_write(&mut w)
+                Ok(target_len + tlv.encode_write(&mut w)?)
             }
         }
     }
