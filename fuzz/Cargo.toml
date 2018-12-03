@@ -44,3 +44,7 @@ path = "fuzz_targets/roundtrip_hash_compact.rs"
 [[bin]]
 name = "roundtrip_feed_compact"
 path = "fuzz_targets/roundtrip_feed_compact.rs"
+
+[[bin]]
+name = "roundtrip_box_compact"
+path = "fuzz_targets/roundtrip_box_compact.rs"
