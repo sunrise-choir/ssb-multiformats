@@ -8,11 +8,11 @@ use varu64;
 
 use super::*;
 
-#[derive(Debug, PartialEq, Eq, Clone, PartialOrd, Ord)]
+#[derive(Debug, PartialEq, Eq, Clone, PartialOrd, Ord, Hash)]
 /// A multibox that owns its data. This does no decryption, it stores cyphertext.
 pub struct Multibox(_Multibox);
 
-#[derive(Debug, PartialEq, Eq, Clone, PartialOrd, Ord)]
+#[derive(Debug, PartialEq, Eq, Clone, PartialOrd, Ord, Hash)]
 enum _Multibox {
     // https://ssbc.github.io/scuttlebutt-protocol-guide/#private-messages
     PrivateBox(Vec<u8>),

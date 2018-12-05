@@ -17,10 +17,10 @@ use varu64;
 use super::*;
 
 /// A multikey that owns its data.
-#[derive(Debug, PartialEq, Eq, Clone, PartialOrd, Ord)]
+#[derive(Debug, PartialEq, Eq, Clone, PartialOrd, Ord, Hash)]
 pub struct Multikey(_Multikey);
 
-#[derive(Debug, PartialEq, Eq, Clone, PartialOrd, Ord)]
+#[derive(Debug, PartialEq, Eq, Clone, PartialOrd, Ord, Hash)]
 enum _Multikey {
     // An [ed25519](http://ed25519.cr.yp.to/) public key.
     Ed25519([u8; 32]),

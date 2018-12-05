@@ -3,10 +3,10 @@ use std::io::{self, Write};
 use super::multikey::{self, Multikey};
 
 /// A multifeed that owns its data.
-#[derive(Debug, PartialEq, Eq, Clone, PartialOrd, Ord)]
+#[derive(Debug, PartialEq, Eq, Clone, PartialOrd, Ord, Hash)]
 pub struct Multifeed(_Multifeed);
 
-#[derive(Debug, PartialEq, Eq, Clone, PartialOrd, Ord)]
+#[derive(Debug, PartialEq, Eq, Clone, PartialOrd, Ord, Hash)]
 enum _Multifeed {
     Multikey(Multikey),
 }

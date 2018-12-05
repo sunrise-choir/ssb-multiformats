@@ -12,10 +12,10 @@ use serde::{
 use super::*;
 
 /// A multihash that owns its data.
-#[derive(Debug, PartialEq, Eq, Clone, PartialOrd, Ord)]
+#[derive(Debug, PartialEq, Eq, Clone, PartialOrd, Ord, Hash)]
 pub struct Multihash(pub Target, _Multihash);
 
-#[derive(Debug, PartialEq, Eq, Clone, Copy, PartialOrd, Ord)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy, PartialOrd, Ord, Hash)]
 /// What does the hash refer to?
 pub enum Target {
     /// An ssb [message](https://spec.scuttlebutt.nz/messages.html).
@@ -33,7 +33,7 @@ impl Target {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, PartialOrd, Ord)]
+#[derive(Debug, PartialEq, Eq, Clone, PartialOrd, Ord, Hash)]
 enum _Multihash {
     // A [sha256](https://en.wikipedia.org/wiki/SHA-2) hash digest.
     Sha256([u8; 32]),
