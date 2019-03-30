@@ -5,8 +5,6 @@ extern crate base64;
 extern crate serde;
 extern crate ring;
 extern crate untrusted;
-extern crate varu64;
-extern crate ctlv;
 
 pub mod multikey;
 pub mod multihash;

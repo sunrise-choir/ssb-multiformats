@@ -10,5 +10,3 @@ base64 = "0.10.0"
 serde = "1.0.80"
 ring = "0.13.2"
 untrusted = "0.6.2"
-varu64 = "0.6.1"
-ctlv = { git = "https://github.com/AljoschaMeyer/ctlv" }

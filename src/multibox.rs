@@ -4,8 +4,6 @@ use std::io::{self, Write};
 
 use base64;
 
-use varu64;
-
 use super::*;
 
 #[derive(Debug, PartialEq, Eq, Clone, PartialOrd, Ord, Hash)]
@@ -109,59 +107,6 @@ impl Multibox {
     pub fn to_legacy_string(&self) -> String {
         unsafe { String::from_utf8_unchecked(self.to_legacy_vec()) }
     }
-
-    pub fn from_compact(s: &[u8]) -> Result<(Multibox, &[u8]), DecodeCompactError> {
-        match varu64::decode(s) {
-            Ok((type_, tail)) => {
-                match varu64::decode(tail) {
-                    Ok((len, tail)) => {
-                        if tail.len() < len as usize {
-                            return Err(DecodeCompactError::NotEnoughInput);
-                        }
-
-                        let mut data = Vec::with_capacity(len as usize);
-                        data.extend_from_slice(&tail[..len as usize]);
-
-                        match type_ {
-                            0 => return Ok((Multibox(_Multibox::PrivateBox(data)), &tail[len as usize..])),
-                            _ => return Ok((Multibox(_Multibox::Other(type_, data)), &tail[len as usize..])),
-                        }
-                    }
-
-                    Err((e, _)) => Err(DecodeCompactError::InvalidLength(e)),
-                }
-            }
-
-            Err((e, _)) => return Err(DecodeCompactError::InvalidType(e)),
-        }
-    }
-
-    pub fn to_compact<W: Write>(&self, w: &mut W) -> Result<(), io::Error> {
-        let (id, bytes) = match self.0 {
-            _Multibox::PrivateBox(ref bytes) => (0, bytes),
-            _Multibox::Other(id, ref bytes) => (id, bytes),
-        };
-
-        varu64::encode_write(id, &mut *w)?;
-        varu64::encode_write(bytes.len() as u64, &mut *w)?;
-        w.write_all(bytes)
-    }
-
-    pub fn to_compact_vec(&self) -> Vec<u8> {
-        let (id, bytes) = match self.0 {
-            _Multibox::PrivateBox(ref bytes) => (0, bytes),
-            _Multibox::Other(id, ref bytes) => (id, bytes),
-        };
-
-        let capacity = varu64::encoding_length(id) + varu64::encoding_length(bytes.len() as u64) + bytes.len();
-        let mut out = Vec::with_capacity(capacity);
-        self.to_compact(&mut out).unwrap();
-        out
-    }
-
-    pub fn to_compact_string(&self) -> String {
-        unsafe { String::from_utf8_unchecked(self.to_compact_vec()) }
-    }
 }
 
 /// Everything that can go wrong when decoding a `Multibox` from the legacy encoding.
@@ -189,29 +134,6 @@ impl fmt::Display for DecodeLegacyError {
 }
 
 impl std::error::Error for DecodeLegacyError {}
-
-/// Everything that can go wrong when decoding a `Multibox` from the compact encoding.
-#[derive(Debug, PartialEq, Eq, Clone)]
-pub enum DecodeCompactError {
-    /// The type indicator was invalid.
-    InvalidType(varu64::DecodeError),
-    /// The length indicator was invalid.
-    InvalidLength(varu64::DecodeError),
-    /// Needed more input to continue decoding.
-    NotEnoughInput,
-}
-
-impl fmt::Display for DecodeCompactError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            &DecodeCompactError::InvalidType(e) => write!(f, "Invalid type: {}", e),
-            &DecodeCompactError::InvalidLength(e) => write!(f, "Invalid length: {}", e),
-            &DecodeCompactError::NotEnoughInput => write!(f, "Not enough input"),
-        }
-    }
-}
-
-impl std::error::Error for DecodeCompactError {}
 
 // Decode the legacy format id of a multibox (canonic crockford base32, no leading zeros, at most 2^64 - 1).
 // Stops decoding when encounterig end of input, a non-base32 character, or at the maximum identifier length.

@@ -11,9 +11,6 @@ use serde::{
     ser::{Serialize, Serializer},
 };
 
-use ctlv;
-use varu64;
-
 use super::*;
 
 /// A multikey that owns its data.
@@ -70,31 +67,6 @@ impl Multikey {
         }
     }
 
-    /// Parses a
-    /// [compact encoding](https://spec.scuttlebutt.nz/datatypes.html#multikey-compact-encoding)
-    /// into a `Multikey`, also returning the remaining input on success.
-    pub fn from_compact(s: &[u8]) -> Result<(Multikey, &[u8]), DecodeCompactError> {
-        match ctlv::Ctlv::decode(s) {
-            Ok((tlv, tail)) => {
-                match tlv.type_ {
-                    ED25519_ID => {
-                        debug_assert!(tlv.value.len() == 32);
-
-                        let mut data = [0u8; 32];
-                        for i in 0..32 {
-                            data[i] = tlv.value[i];
-                        }
-
-                        Ok((Multikey(_Multikey::Ed25519(data)), tail))
-                    }
-                    _ => Err(DecodeCompactError::UnknownPrimitive(tlv.type_))
-                }
-            }
-
-            Err((e, _)) => Err(DecodeCompactError::Ctlv(e))
-        }
-    }
-
     /// Serialize a `Multikey` into a writer, using the
     /// [legacy encoding](https://spec.scuttlebutt.nz/datatypes.html#multikey-legacy-encoding).
     pub fn to_legacy<W: Write>(&self, w: &mut W) -> Result<(), io::Error> {
@@ -127,53 +99,6 @@ impl Multikey {
     /// [legacy encoding](https://spec.scuttlebutt.nz/datatypes.html#multikey-legacy-encoding).
     pub fn to_legacy_string(&self) -> String {
         unsafe { String::from_utf8_unchecked(self.to_legacy_vec()) }
-    }
-
-    /// Returns how many bytes the compact encoding of this `Multikey` takes up.
-    pub fn encoding_length(&self) -> usize {
-        match self.0 {
-            _Multikey::Ed25519(ref bytes) => {
-                let tlv = ctlv::CtlvRef {
-                    type_: ED25519_ID,
-                    value: &bytes[..]
-                };
-                tlv.encoding_length()
-            }
-        }
-    }
-
-    /// Serialize a `Multikey` into a writer, using the
-    /// [compact encoding](https://spec.scuttlebutt.nz/datatypes.html#multikey-compact-encoding).
-    pub fn to_compact<W: Write>(&self, w: W) -> Result<usize, io::Error> {
-        match self.0 {
-            _Multikey::Ed25519(ref bytes) => {
-                let tlv = ctlv::CtlvRef {
-                    type_: ED25519_ID,
-                    value: &bytes[..]
-                };
-                tlv.encode_write(w)
-            }
-        }
-    }
-
-    /// Serialize a `Multikey` into an owned byte vector, using the
-    /// [compact encoding](https://spec.scuttlebutt.nz/datatypes.html#multikey-compact-encoding).
-    pub fn to_compact_vec(&self) -> Vec<u8> {
-        match self.0 {
-            _Multikey::Ed25519(ref bytes) => {
-                let tlv = ctlv::CtlvRef {
-                    type_: ED25519_ID,
-                    value: &bytes[..]
-                };
-                tlv.encode_vec()
-            }
-        }
-    }
-
-    /// Serialize a `Multikey` into an owned string, using the
-    /// [compact encoding](https://spec.scuttlebutt.nz/datatypes.html#multikey-compact-encoding).
-    pub fn to_compact_string(&self) -> String {
-        unsafe { String::from_utf8_unchecked(self.to_compact_vec()) }
     }
 
     /// Check whether the given signature of the given text was created by this key.
@@ -237,28 +162,6 @@ impl fmt::Display for DecodeLegacyError {
 }
 
 impl std::error::Error for DecodeLegacyError {}
-
-/// Everything that can go wrong when decoding a `Multikey` from the compact encoding.
-#[derive(Debug, PartialEq, Eq, Clone)]
-pub enum DecodeCompactError {
-    /// The cryptographic primitive is not known to this ssb implementation.
-    UnknownPrimitive(u64),
-    /// The ctlv encoding was invalid
-    Ctlv(ctlv::DecodeError),
-}
-
-impl fmt::Display for DecodeCompactError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            &DecodeCompactError::UnknownPrimitive(prim) => {
-                write!(f, "Unknown primitive: {}", prim)
-            }
-            &DecodeCompactError::Ctlv(e) => e.fmt(f),
-        }
-    }
-}
-
-impl std::error::Error for DecodeCompactError {}
 
 /// A signature that owns its data.
 #[derive(Debug, PartialEq, Eq, Clone, PartialOrd, Ord)]
@@ -342,34 +245,6 @@ impl Multikey {
              }
          }
     }
-
-    /// Deserialize a legacy signature corrsponding to this key type.
-    pub fn sig_from_compact<'a>(&self, s: &'a[u8]) -> Result<(Multisig, &'a[u8]), DecodeCompactSigError> {
-        match varu64::decode(s) {
-            Ok((len, tail)) => {
-                if tail.len() < len as usize {
-                    return Err(DecodeCompactSigError::NotEnoughInput);
-                }
-
-                match self.0 {
-                    _Multikey::Ed25519(_) => {
-                        if len != 64 {
-                            return Err(DecodeCompactSigError::Ed25519WrongSize);
-                        }
-
-                        let mut data = [0u8; 64];
-                        for i in 0..64 {
-                            data[i] = tail[i];
-                        }
-
-                        return Ok((Multisig(_Multisig::Ed25519(data)), &tail[len as usize..]));
-                    }
-                }
-            }
-
-            Err((e, _)) => Err(DecodeCompactSigError::Length(e)),
-        }
-    }
 }
 
 impl Multisig {
@@ -409,35 +284,6 @@ impl Multisig {
     pub fn to_legacy_string(&self) -> String {
         unsafe { String::from_utf8_unchecked(self.to_legacy_vec()) }
     }
-
-    /// Serialize a `Multisig` into a writer, in the appropriate form for a
-    /// [clmr](https://spec.scuttlebutt.nz/messages.html#compact-legacy-message-representation).
-    pub fn to_compact<W: Write>(&self, w: &mut W) -> Result<usize, io::Error> {
-        match self.0 {
-            _Multisig::Ed25519(ref bytes) => {
-                w.write_all(&[64])?;
-                w.write_all(bytes).map(|_| 65)
-            }
-        }
-    }
-
-    /// Serialize a `Multisig` into an owned byte vector, in the appropriate form for a
-    /// [clmr](https://spec.scuttlebutt.nz/messages.html#compact-legacy-message-representation).
-    pub fn to_compact_vec(&self) -> Vec<u8> {
-        match self.0 {
-            _Multisig::Ed25519(..) => {
-                let mut vec = Vec::with_capacity(65);
-                self.to_compact(&mut vec).unwrap();
-                vec
-            }
-        }
-    }
-
-    /// Serialize a `Multisig` into an owned string, in the appropriate form for a
-    /// [clmr](https://spec.scuttlebutt.nz/messages.html#compact-legacy-message-representation).
-    pub fn to_compact_string(&self) -> String {
-        unsafe { String::from_utf8_unchecked(self.to_compact_vec()) }
-    }
 }
 
 /// Everything that can go wrong when decoding a signature from the legacy encoding.
@@ -474,33 +320,6 @@ impl fmt::Display for DecodeSignatureError {
 
 impl std::error::Error for DecodeSignatureError {}
 
-/// Everything that can go wrong when decoding a `Multisig` from the compact encoding.
-#[derive(Debug, PartialEq, Eq, Clone)]
-pub enum DecodeCompactSigError {
-    /// The length varu64 was invalid.
-    Length(varu64::DecodeError),
-    /// Expected an ed25519 signature, but the data length does not match.
-    Ed25519WrongSize,
-    /// Less input than the length declared.
-    NotEnoughInput,
-}
-
-impl fmt::Display for DecodeCompactSigError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            &DecodeCompactSigError::Length(e) => e.fmt(f),
-            &DecodeCompactSigError::Ed25519WrongSize => {
-                write!(f, "Data of wrong length")
-            }
-            &DecodeCompactSigError::NotEnoughInput => {
-                write!(f, "Not enough input data")
-            }
-        }
-    }
-}
-
-impl std::error::Error for DecodeCompactSigError {}
-
 /// The legacy suffix indicating the ed25519 cryptographic primitive.
 const ED25519_SUFFIX: &'static [u8] = b"ed25519";
 /// Length of a base64 encoded ed25519 public key.
@@ -509,9 +328,6 @@ const ED25519_PK_BASE64_LEN: usize = 44;
 const SSB_ED25519_ENCODED_LEN: usize = ED25519_PK_BASE64_LEN + 9;
 /// Length of a base64 encoded ed25519 public key.
 const ED25519_SIG_BASE64_LEN: usize = 88;
-
-/// Compact format id of the ed25519 primitive.
-const ED25519_ID: u64 = 40;
 
 #[test]
 fn test_from_legacy() {
