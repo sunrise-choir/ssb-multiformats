@@ -42,47 +42,39 @@ impl Multihash {
     pub fn from_legacy(mut s: &[u8]) -> Result<(Multihash, &[u8]), DecodeLegacyError> {
         let target;
 
-        match skip_prefix(s, b"%") {
-            Some(tail) => {
-                s = tail;
-                target = Target::Message;
-            },
-            None => match skip_prefix(s, b"&") {
-                Some(tail) => {
-                    s = tail;
-                    target = Target::Blob;
-                },
-                None => return Err(DecodeLegacyError::Sigil),
-            }
+        if let Some(tail) = skip_prefix(s, b"%") {
+            s = tail;
+            target = Target::Message;
+        } else {
+            let tail = skip_prefix(s, b"&")
+                .ok_or_else(|| DecodeLegacyError::Sigil)?;
+
+            s = tail;
+            target = Target::Blob;
         }
 
-        match split_at_byte(s, 0x2E) {
-            None => return Err(DecodeLegacyError::NoDot),
-            Some((data, suffix)) => {
-                match skip_prefix(suffix, SHA256_SUFFIX) {
-                    None => return Err(DecodeLegacyError::UnknownSuffix),
-                    Some(tail) => {
-                        if data.len() != SHA256_BASE64_LEN {
-                            return Err(DecodeLegacyError::Sha256WrongSize);
-                        }
+        let (data, suffix) = split_at_byte(s, 0x2E)
+            .ok_or_else(|| DecodeLegacyError::NoDot)?;
 
-                        if data[SHA256_BASE64_LEN - 2] == b"="[0] {
-                            return Err(DecodeLegacyError::Sha256WrongSize);
-                        }
+        let tail = skip_prefix(suffix, SHA256_SUFFIX) 
+            .ok_or_else(|| DecodeLegacyError::UnknownSuffix)?;
 
-                        if data[SHA256_BASE64_LEN - 1] != b"="[0] {
-                            return Err(DecodeLegacyError::Sha256WrongSize);
-                        }
-
-                        let mut dec_data = [0u8; 32];
-                        match base64::decode_config_slice(data, base64::STANDARD, &mut dec_data[..]) {
-                            Err(e) => return Err(DecodeLegacyError::InvalidBase64(e)),
-                            Ok(_) => return Ok((Multihash(target, _Multihash::Sha256(dec_data)), tail)),
-                        }
-                    }
-                }
-            }
+        if data.len() != SHA256_BASE64_LEN {
+            return Err(DecodeLegacyError::Sha256WrongSize);
         }
+
+        if data[SHA256_BASE64_LEN - 2] == b"="[0] {
+            return Err(DecodeLegacyError::Sha256WrongSize);
+        }
+
+        if data[SHA256_BASE64_LEN - 1] != b"="[0] {
+            return Err(DecodeLegacyError::Sha256WrongSize);
+        }
+
+        let mut dec_data = [0u8; 32];
+        base64::decode_config_slice(data, base64::STANDARD, &mut dec_data[..])
+            .map_err(|e| DecodeLegacyError::InvalidBase64(e))
+            .map(|_| (Multihash(target, _Multihash::Sha256(dec_data)), tail))
     }
 
     /// Serialize a `Multihash` into a writer, using the
