@@ -33,38 +33,32 @@ impl Multikey {
     /// [legacy encoding](https://spec.scuttlebutt.nz/datatypes.html#multikey-legacy-encoding)
     /// into a `Multikey`, also returning the remaining input on success.
     pub fn from_legacy(mut s: &[u8]) -> Result<(Multikey, &[u8]), DecodeLegacyError> {
-        match skip_prefix(s, b"@") {
-            Some(tail) => s = tail,
-            None => return Err(DecodeLegacyError::Sigil),
+        s = skip_prefix(s, b"@")
+            .ok_or_else(|| DecodeLegacyError::Sigil)?;
+
+        let (data, suffix) = split_at_byte(s, 0x2E)
+            .ok_or_else(|| DecodeLegacyError::NoDot)?;
+
+        let tail = skip_prefix(suffix, ED25519_SUFFIX)
+            .ok_or_else(|| DecodeLegacyError::UnknownSuffix)?;
+
+        if data.len() != ED25519_PK_BASE64_LEN {
+            return Err(DecodeLegacyError::Ed25519WrongSize);
         }
 
-        match split_at_byte(s, 0x2E) {
-            None => return Err(DecodeLegacyError::NoDot),
-            Some((data, suffix)) => {
-                match skip_prefix(suffix, ED25519_SUFFIX) {
-                    None => return Err(DecodeLegacyError::UnknownSuffix),
-                    Some(tail) => {
-                        if data.len() != ED25519_PK_BASE64_LEN {
-                            return Err(DecodeLegacyError::Ed25519WrongSize);
-                        }
-
-                        if data[ED25519_PK_BASE64_LEN - 2] == b"="[0] {
-                            return Err(DecodeLegacyError::Ed25519WrongSize);
-                        }
-
-                        if data[ED25519_PK_BASE64_LEN - 1] != b"="[0] {
-                            return Err(DecodeLegacyError::Ed25519WrongSize);
-                        }
-
-                        let mut dec_data = [0u8; 32];
-                        match base64::decode_config_slice(data, base64::STANDARD, &mut dec_data[..]) {
-                            Err(e) => return Err(DecodeLegacyError::InvalidBase64(e)),
-                            Ok(_) => return Ok((Multikey(_Multikey::Ed25519(dec_data)), tail)),
-                        }
-                    }
-                }
-            }
+        if data[ED25519_PK_BASE64_LEN - 2] == b"="[0] {
+            return Err(DecodeLegacyError::Ed25519WrongSize);
         }
+
+        if data[ED25519_PK_BASE64_LEN - 1] != b"="[0] {
+            return Err(DecodeLegacyError::Ed25519WrongSize);
+        }
+
+        let mut dec_data = [0u8; 32];
+
+        base64::decode_config_slice(data, base64::STANDARD, &mut dec_data[..])
+            .map_err(|e| DecodeLegacyError::InvalidBase64(e))
+            .map(|_| (Multikey(_Multikey::Ed25519(dec_data)), tail))
     }
 
     /// Serialize a `Multikey` into a writer, using the
