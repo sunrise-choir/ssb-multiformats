@@ -209,39 +209,35 @@ impl Ord for _Multisig {
 
 impl Multikey {
     /// Deserialize a legacy signature corrsponding to this key type.
-    pub fn sig_from_legacy<'a>(&self,
-                                 s: &'a [u8])
-                                 -> Result<(Multisig, &'a [u8]), DecodeSignatureError> {
-         match split_at_byte(s, 0x2E) {
-             None => return Err(DecodeSignatureError::NoDot),
-             Some((data, suffix)) => {
-                 match skip_prefix(suffix, b"sig") {
-                     None => return Err(DecodeSignatureError::NoDotSig),
-                     Some(suffix) => {
-                         match self.0 {
-                             _Multikey::Ed25519(_) => {
-                                 match skip_prefix(suffix, b".ed25519") {
-                                     None => return Err(DecodeSignatureError::UnknownSuffix),
-                                     Some(tail) => {
-                                         if data.len() != ED25519_SIG_BASE64_LEN {
-                                             return Err(DecodeSignatureError::Ed25519WrongSize);
-                                         }
+    pub fn sig_from_legacy<'a>(&self, s: &'a [u8])
+        -> Result<(Multisig, &'a [u8]), DecodeSignatureError>
+    {
+         let (data, suffix) = split_at_byte(s, 0x2E)
+            .ok_or_else(|| DecodeSignatureError::NoDot)?;
 
-                                         if data[ED25519_SIG_BASE64_LEN - 2] != b"="[0] {
-                                             return Err(DecodeSignatureError::Ed25519WrongSize);
-                                         }
+         let suffix = skip_prefix(suffix, b"sig")
+             .ok_or_else(|| DecodeSignatureError::NoDotSig)?;
 
-                                         let mut dec_data = [0u8; 64];
-                                         match base64::decode_config_slice(data, base64::STANDARD, &mut dec_data[..]) {
-                                             Err(e) => return Err(DecodeSignatureError::InvalidBase64(e)),
-                                             Ok(_) => return Ok((Multisig(_Multisig::Ed25519(dec_data)), tail)),
-                                         }
-                                     }
-                                 }
-                             }
-                         }
-                     }
+         match self.0 {
+             _Multikey::Ed25519(_) => {
+                 let tail = skip_prefix(suffix, b".ed25519")
+                     .ok_or_else(|| DecodeSignatureError::UnknownSuffix)?;
+
+                 if data.len() != ED25519_SIG_BASE64_LEN {
+                     return Err(DecodeSignatureError::Ed25519WrongSize);
                  }
+
+                 if data[ED25519_SIG_BASE64_LEN - 2] != b"="[0] {
+                     return Err(DecodeSignatureError::Ed25519WrongSize);
+                 }
+
+                 let mut dec_data = [0u8; 64];
+
+                 base64::decode_config_slice(data, base64::STANDARD, &mut dec_data[..])
+                     .map_err(|e| DecodeSignatureError::InvalidBase64(e))
+                     .map(|_| {
+                         (Multisig(_Multisig::Ed25519(dec_data)), tail)
+                     })
              }
          }
     }
