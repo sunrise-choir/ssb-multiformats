@@ -262,45 +262,14 @@ fn test_from_legacy() {
         _ => panic!()
     }
 
-    match (Multibox::from_legacy(b"lA==.box").unwrap().0).0 {
-        _Multibox::PrivateBox(..) => {},
-        _ => panic!()
-    }
-
-    match (Multibox::from_legacy(b"lA==.boxa").unwrap().0).0 {
-        _Multibox::PrivateBox(..) => {},
-        _ => panic!()
-    }
-
-    match (Multibox::from_legacy(b"lA==.boxU").unwrap().0).0 {
-        _Multibox::PrivateBox(..) => {},
-        _ => panic!()
-    }
-
-    match (Multibox::from_legacy(b"lA==.box\"").unwrap().0).0 {
-        _Multibox::PrivateBox(..) => {},
-        _ => panic!()
-    }
-
-    match (Multibox::from_legacy(b"lA==.box1").unwrap().0).0 {
-        _Multibox::Other(1, _) => {},
-        _ => panic!()
-    }
-
-    match (Multibox::from_legacy(b"lA==.boxV").unwrap().0).0 {
-        _Multibox::Other(27, _) => {},
-        _ => panic!()
-    }
-
-    match (Multibox::from_legacy(b"lA==.box11").unwrap().0).0 {
-        _Multibox::Other(0b00001_00001, _) => {},
-        _ => panic!()
-    }
-
-    match (Multibox::from_legacy(b".boxNN").unwrap().0).0 {
-        _Multibox::Other(0b10101_10101, _) => {},
-        _ => panic!()
-    }
+    assert_matches!((Multibox::from_legacy(b"lA==.box").unwrap().0).0   , _Multibox::PrivateBox(..));
+    assert_matches!((Multibox::from_legacy(b"lA==.boxa").unwrap().0).0  , _Multibox::PrivateBox(..));
+    assert_matches!((Multibox::from_legacy(b"lA==.boxU").unwrap().0).0  , _Multibox::PrivateBox(..));
+    assert_matches!((Multibox::from_legacy(b"lA==.box\"").unwrap().0).0 , _Multibox::PrivateBox(..));
+    assert_matches!((Multibox::from_legacy(b"lA==.box1").unwrap().0).0  , _Multibox::Other(1             , _));
+    assert_matches!((Multibox::from_legacy(b"lA==.boxV").unwrap().0).0  , _Multibox::Other(27            , _));
+    assert_matches!((Multibox::from_legacy(b"lA==.box11").unwrap().0).0 , _Multibox::Other(0b00001_00001 , _));
+    assert_matches!((Multibox::from_legacy(b".boxNN").unwrap().0).0     , _Multibox::Other(0b10101_10101 , _));
 }
 
 #[test]
