@@ -1,5 +1,5 @@
 //! Implementations of the [ssb multiformats](https://spec.scuttlebutt.nz/datatypes.html).
-#![warn(missing_docs)]
+// #![warn(missing_docs)]
 
 extern crate base64;
 extern crate serde;
