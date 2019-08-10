@@ -6,6 +6,9 @@ extern crate serde;
 extern crate ring;
 extern crate untrusted;
 
+#[cfg(test)]
+#[macro_use] extern crate matches;
+
 pub mod multikey;
 pub mod multihash;
 pub mod multibox;
