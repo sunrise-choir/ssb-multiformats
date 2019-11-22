@@ -46,18 +46,16 @@ impl Multihash {
             s = tail;
             target = Target::Message;
         } else {
-            let tail = skip_prefix(s, b"&")
-                .ok_or_else(|| DecodeLegacyError::Sigil)?;
+            let tail = skip_prefix(s, b"&").ok_or_else(|| DecodeLegacyError::Sigil)?;
 
             s = tail;
             target = Target::Blob;
         }
 
-        let (data, suffix) = split_at_byte(s, 0x2E)
-            .ok_or_else(|| DecodeLegacyError::NoDot)?;
+        let (data, suffix) = split_at_byte(s, 0x2E).ok_or_else(|| DecodeLegacyError::NoDot)?;
 
-        let tail = skip_prefix(suffix, SHA256_SUFFIX) 
-            .ok_or_else(|| DecodeLegacyError::UnknownSuffix)?;
+        let tail =
+            skip_prefix(suffix, SHA256_SUFFIX).ok_or_else(|| DecodeLegacyError::UnknownSuffix)?;
 
         if data.len() != SHA256_BASE64_LEN {
             return Err(DecodeLegacyError::Sha256WrongSize);
@@ -117,7 +115,8 @@ impl Multihash {
 
 impl Serialize for Multihash {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-        where S: Serializer
+    where
+        S: Serializer,
     {
         serializer.serialize_str(&self.to_legacy_string())
     }
@@ -125,7 +124,8 @@ impl Serialize for Multihash {
 
 impl<'de> Deserialize<'de> for Multihash {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-        where D: Deserializer<'de>
+    where
+        D: Deserializer<'de>,
     {
         let s = String::deserialize(deserializer)?;
         Multihash::from_legacy(&s.as_bytes())
@@ -149,19 +149,14 @@ pub enum DecodeLegacyError {
     Sha256WrongSize,
 }
 
-
 impl fmt::Display for DecodeLegacyError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             &DecodeLegacyError::Sigil => write!(f, "Invalid sigil"),
             &DecodeLegacyError::InvalidBase64(ref err) => write!(f, "{}", err),
             &DecodeLegacyError::NoDot => write!(f, "No dot"),
-            &DecodeLegacyError::UnknownSuffix => {
-                write!(f, "Unknown suffix")
-            }
-            &DecodeLegacyError::Sha256WrongSize => {
-                write!(f, "Data of wrong length")
-            }
+            &DecodeLegacyError::UnknownSuffix => write!(f, "Unknown suffix"),
+            &DecodeLegacyError::Sha256WrongSize => write!(f, "Data of wrong length"),
         }
     }
 }
@@ -177,12 +172,28 @@ const SSB_SHA256_ENCODED_LEN: usize = SHA256_BASE64_LEN + 9;
 
 #[test]
 fn test_from_legacy() {
-    assert!(Multihash::from_legacy(b"%MwjdLV95P7VqHfrgS49nScXsyIwJfL229e5OSKc+0rc=.sha256").is_ok());
-    assert!(Multihash::from_legacy(b"&MwjdLV95P7VqHfrgS49nScXsyIwJfL229e5OSKc+0rc=.sha256").is_ok());
-    assert!(Multihash::from_legacy(b"%MwjdLV95P7VqHfrgS49nScXsyIwJfL229e5OSKc+0rd=.sha256").is_err());
-    assert!(Multihash::from_legacy(b"@MwjdLV95P7VqHfrgS49nScXsyIwJfL229e5OSKc+0rc=.sha256").is_err());
-    assert!(Multihash::from_legacy(b"%MwjdLV95P7VqHfrgS49nScXsyIwJfL229e5OSKc+0rc=.tha256").is_err());
-    assert!(Multihash::from_legacy(b"%MwjdLV95P7VqHfrgS49nScXsyIwJfL229e5OSKc+0rc=sha256").is_err());
-    assert!(Multihash::from_legacy(b"%MwjdLV95P7VqHfrgS49nScXsyIwJfL229e5OSKc+0rc.sha256").is_err());
-    assert!(Multihash::from_legacy(b"%MwjdLV95P7VqHfrgS49nScXsyIwJfL229e5OSKc+0rc==.sha256").is_err());
+    assert!(
+        Multihash::from_legacy(b"%MwjdLV95P7VqHfrgS49nScXsyIwJfL229e5OSKc+0rc=.sha256").is_ok()
+    );
+    assert!(
+        Multihash::from_legacy(b"&MwjdLV95P7VqHfrgS49nScXsyIwJfL229e5OSKc+0rc=.sha256").is_ok()
+    );
+    assert!(
+        Multihash::from_legacy(b"%MwjdLV95P7VqHfrgS49nScXsyIwJfL229e5OSKc+0rd=.sha256").is_err()
+    );
+    assert!(
+        Multihash::from_legacy(b"@MwjdLV95P7VqHfrgS49nScXsyIwJfL229e5OSKc+0rc=.sha256").is_err()
+    );
+    assert!(
+        Multihash::from_legacy(b"%MwjdLV95P7VqHfrgS49nScXsyIwJfL229e5OSKc+0rc=.tha256").is_err()
+    );
+    assert!(
+        Multihash::from_legacy(b"%MwjdLV95P7VqHfrgS49nScXsyIwJfL229e5OSKc+0rc=sha256").is_err()
+    );
+    assert!(
+        Multihash::from_legacy(b"%MwjdLV95P7VqHfrgS49nScXsyIwJfL229e5OSKc+0rc.sha256").is_err()
+    );
+    assert!(
+        Multihash::from_legacy(b"%MwjdLV95P7VqHfrgS49nScXsyIwJfL229e5OSKc+0rc==.sha256").is_err()
+    );
 }

@@ -1,15 +1,15 @@
 //! Implementation of [ssb multikeys](https://spec.scuttlebutt.nz/datatypes.html#multikey).
-use std::cmp::{PartialEq, Eq, PartialOrd, Ord, Ordering};
+use std::cmp::{Eq, Ord, Ordering, PartialEq, PartialOrd};
 use std::fmt;
 use std::io::{self, Write};
 
 use base64;
 use ring::signature;
-use untrusted::Input;
 use serde::{
     de::{Deserialize, Deserializer, Error},
     ser::{Serialize, Serializer},
 };
+use untrusted::Input;
 
 use super::*;
 
@@ -33,14 +33,12 @@ impl Multikey {
     /// [legacy encoding](https://spec.scuttlebutt.nz/datatypes.html#multikey-legacy-encoding)
     /// into a `Multikey`, also returning the remaining input on success.
     pub fn from_legacy(mut s: &[u8]) -> Result<(Multikey, &[u8]), DecodeLegacyError> {
-        s = skip_prefix(s, b"@")
-            .ok_or_else(|| DecodeLegacyError::Sigil)?;
+        s = skip_prefix(s, b"@").ok_or_else(|| DecodeLegacyError::Sigil)?;
 
-        let (data, suffix) = split_at_byte(s, 0x2E)
-            .ok_or_else(|| DecodeLegacyError::NoDot)?;
+        let (data, suffix) = split_at_byte(s, 0x2E).ok_or_else(|| DecodeLegacyError::NoDot)?;
 
-        let tail = skip_prefix(suffix, ED25519_SUFFIX)
-            .ok_or_else(|| DecodeLegacyError::UnknownSuffix)?;
+        let tail =
+            skip_prefix(suffix, ED25519_SUFFIX).ok_or_else(|| DecodeLegacyError::UnknownSuffix)?;
 
         if data.len() != ED25519_PK_BASE64_LEN {
             return Err(DecodeLegacyError::Ed25519WrongSize);
@@ -98,16 +96,21 @@ impl Multikey {
     /// Check whether the given signature of the given text was created by this key.
     pub fn is_signature_correct(&self, data: &[u8], sig: &Multisig) -> bool {
         match (&self.0, &sig.0) {
-            (_Multikey::Ed25519(ref key), _Multisig::Ed25519(ref sig)) => {
-                signature::verify(&signature::ED25519, Input::from(&key[..]), Input::from(data), Input::from(sig)).is_ok()
-            }
+            (_Multikey::Ed25519(ref key), _Multisig::Ed25519(ref sig)) => signature::verify(
+                &signature::ED25519,
+                Input::from(&key[..]),
+                Input::from(data),
+                Input::from(sig),
+            )
+            .is_ok(),
         }
     }
 }
 
 impl Serialize for Multikey {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-        where S: Serializer
+    where
+        S: Serializer,
     {
         serializer.serialize_str(&self.to_legacy_string())
     }
@@ -115,7 +118,8 @@ impl Serialize for Multikey {
 
 impl<'de> Deserialize<'de> for Multikey {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-        where D: Deserializer<'de>
+    where
+        D: Deserializer<'de>,
     {
         let s = String::deserialize(deserializer)?;
         Multikey::from_legacy(&s.as_bytes())
@@ -145,12 +149,8 @@ impl fmt::Display for DecodeLegacyError {
             &DecodeLegacyError::Sigil => write!(f, "Invalid sigil"),
             &DecodeLegacyError::InvalidBase64(ref err) => write!(f, "{}", err),
             &DecodeLegacyError::NoDot => write!(f, "No dot"),
-            &DecodeLegacyError::UnknownSuffix => {
-                write!(f, "Unknown suffix")
-            }
-            &DecodeLegacyError::Ed25519WrongSize => {
-                write!(f, "Data of wrong length")
-            }
+            &DecodeLegacyError::UnknownSuffix => write!(f, "Unknown suffix"),
+            &DecodeLegacyError::Ed25519WrongSize => write!(f, "Data of wrong length"),
         }
     }
 }
@@ -170,7 +170,7 @@ enum _Multisig {
 impl fmt::Debug for _Multisig {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            _Multisig::Ed25519(ref data) => write!(f, "Ed25519 signature: {:?}", &data[..])
+            _Multisig::Ed25519(ref data) => write!(f, "Ed25519 signature: {:?}", &data[..]),
         }
     }
 }
@@ -203,37 +203,34 @@ impl Ord for _Multisig {
 
 impl Multikey {
     /// Deserialize a legacy signature corrsponding to this key type.
-    pub fn sig_from_legacy<'a>(&self, s: &'a [u8])
-        -> Result<(Multisig, &'a [u8]), DecodeSignatureError>
-    {
-         let (data, suffix) = split_at_byte(s, 0x2E)
-            .ok_or_else(|| DecodeSignatureError::NoDot)?;
+    pub fn sig_from_legacy<'a>(
+        &self,
+        s: &'a [u8],
+    ) -> Result<(Multisig, &'a [u8]), DecodeSignatureError> {
+        let (data, suffix) = split_at_byte(s, 0x2E).ok_or_else(|| DecodeSignatureError::NoDot)?;
 
-         let suffix = skip_prefix(suffix, b"sig")
-             .ok_or_else(|| DecodeSignatureError::NoDotSig)?;
+        let suffix = skip_prefix(suffix, b"sig").ok_or_else(|| DecodeSignatureError::NoDotSig)?;
 
-         match self.0 {
-             _Multikey::Ed25519(_) => {
-                 let tail = skip_prefix(suffix, b".ed25519")
-                     .ok_or_else(|| DecodeSignatureError::UnknownSuffix)?;
+        match self.0 {
+            _Multikey::Ed25519(_) => {
+                let tail = skip_prefix(suffix, b".ed25519")
+                    .ok_or_else(|| DecodeSignatureError::UnknownSuffix)?;
 
-                 if data.len() != ED25519_SIG_BASE64_LEN {
-                     return Err(DecodeSignatureError::Ed25519WrongSize);
-                 }
+                if data.len() != ED25519_SIG_BASE64_LEN {
+                    return Err(DecodeSignatureError::Ed25519WrongSize);
+                }
 
-                 if data[ED25519_SIG_BASE64_LEN - 2] != b"="[0] {
-                     return Err(DecodeSignatureError::Ed25519WrongSize);
-                 }
+                if data[ED25519_SIG_BASE64_LEN - 2] != b"="[0] {
+                    return Err(DecodeSignatureError::Ed25519WrongSize);
+                }
 
-                 let mut dec_data = [0u8; 64];
+                let mut dec_data = [0u8; 64];
 
-                 base64::decode_config_slice(data, base64::STANDARD, &mut dec_data[..])
-                     .map_err(|e| DecodeSignatureError::InvalidBase64(e))
-                     .map(|_| {
-                         (Multisig(_Multisig::Ed25519(dec_data)), tail)
-                     })
-             }
-         }
+                base64::decode_config_slice(data, base64::STANDARD, &mut dec_data[..])
+                    .map_err(|e| DecodeSignatureError::InvalidBase64(e))
+                    .map(|_| (Multisig(_Multisig::Ed25519(dec_data)), tail))
+            }
+        }
     }
 }
 
@@ -297,14 +294,9 @@ impl fmt::Display for DecodeSignatureError {
             &DecodeSignatureError::InvalidBase64(ref err) => write!(f, "{}", err),
             &DecodeSignatureError::NoDot => write!(f, "No dot"),
             &DecodeSignatureError::NoDotSig => write!(f, "No .sig"),
-            &DecodeSignatureError::UnknownSuffix => {
-                write!(f, "Unknown suffix")
-            }
-            &DecodeSignatureError::Ed25519WrongSize => {
-                write!(f, "Data of wrong length")
-            }
+            &DecodeSignatureError::UnknownSuffix => write!(f, "Unknown suffix"),
+            &DecodeSignatureError::Ed25519WrongSize => write!(f, "Data of wrong length"),
         }
-
     }
 }
 
@@ -321,11 +313,25 @@ const ED25519_SIG_BASE64_LEN: usize = 88;
 
 #[test]
 fn test_from_legacy() {
-    assert!(Multikey::from_legacy(b"@zurF8X68ArfRM71dF3mKh36W0xDM8QmOnAS5bYOq8hA=.ed25519").is_ok());
-    assert!(Multikey::from_legacy(b"@zurF8X68ArfRM71dF3mKh36W0xDM8QmOnAS5bYOq8hB=.ed25519").is_err());
-    assert!(Multikey::from_legacy(b"&zurF8X68ArfRM71dF3mKh36W0xDM8QmOnAS5bYOq8hA=.ed25519").is_err());
-    assert!(Multikey::from_legacy(b"@zurF8X68ArfRM71dF3mKh36W0xDM8QmOnAS5bYOq8hA=.dd25519").is_err());
-    assert!(Multikey::from_legacy(b"@zurF8X68ArfRM71dF3mKh36W0xDM8QmOnAS5bYOq8hA=ed25519").is_err());
-    assert!(Multikey::from_legacy(b"@zurF8X68ArfRM71dF3mKh36W0xDM8QmOnAS5bYOq8hA.ed25519").is_err());
-    assert!(Multikey::from_legacy(b"@zurF8X68ArfRM71dF3mKh36W0xDM8QmOnAS5bYOq8hA==.ed25519").is_err());
+    assert!(
+        Multikey::from_legacy(b"@zurF8X68ArfRM71dF3mKh36W0xDM8QmOnAS5bYOq8hA=.ed25519").is_ok()
+    );
+    assert!(
+        Multikey::from_legacy(b"@zurF8X68ArfRM71dF3mKh36W0xDM8QmOnAS5bYOq8hB=.ed25519").is_err()
+    );
+    assert!(
+        Multikey::from_legacy(b"&zurF8X68ArfRM71dF3mKh36W0xDM8QmOnAS5bYOq8hA=.ed25519").is_err()
+    );
+    assert!(
+        Multikey::from_legacy(b"@zurF8X68ArfRM71dF3mKh36W0xDM8QmOnAS5bYOq8hA=.dd25519").is_err()
+    );
+    assert!(
+        Multikey::from_legacy(b"@zurF8X68ArfRM71dF3mKh36W0xDM8QmOnAS5bYOq8hA=ed25519").is_err()
+    );
+    assert!(
+        Multikey::from_legacy(b"@zurF8X68ArfRM71dF3mKh36W0xDM8QmOnAS5bYOq8hA.ed25519").is_err()
+    );
+    assert!(
+        Multikey::from_legacy(b"@zurF8X68ArfRM71dF3mKh36W0xDM8QmOnAS5bYOq8hA==.ed25519").is_err()
+    );
 }

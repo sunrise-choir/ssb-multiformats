@@ -2,17 +2,18 @@
 // #![warn(missing_docs)]
 
 extern crate base64;
-extern crate serde;
 extern crate ring;
+extern crate serde;
 extern crate untrusted;
 
 #[cfg(test)]
-#[macro_use] extern crate matches;
+#[macro_use]
+extern crate matches;
 
-pub mod multikey;
-pub mod multihash;
 pub mod multibox;
 pub mod multifeed;
+pub mod multihash;
+pub mod multikey;
 
 ///////////////////////////////////////////////////////////////////////////////
 // A bunch of helper functions used throughout the crate for parsing legacy encodings.

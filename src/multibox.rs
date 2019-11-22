@@ -35,8 +35,7 @@ impl Multibox {
     /// [legacy encoding](https://spec.scuttlebutt.nz/datatypes.html#multibox-legacy-encoding)
     /// into a `Multibox`, also returning the remaining input on success.
     pub fn from_legacy(s: &[u8]) -> Result<(Multibox, &[u8]), DecodeLegacyError> {
-        let (data, suffix) = split_at_byte(s, 0x2E)
-            .ok_or_else(|| DecodeLegacyError::NoDot)?;
+        let (data, suffix) = split_at_byte(s, 0x2E).ok_or_else(|| DecodeLegacyError::NoDot)?;
 
         base64::decode_config(data, base64::STANDARD)
             .map_err(|base64_err| DecodeLegacyError::InvalidBase64(base64_err))
@@ -45,18 +44,12 @@ impl Multibox {
                     return Err(DecodeLegacyError::NoncanonicPadding);
                 }
 
-                let tail = skip_prefix(suffix, b"box")
-                    .ok_or_else(|| DecodeLegacyError::InvalidSuffix)?;
+                let tail =
+                    skip_prefix(suffix, b"box").ok_or_else(|| DecodeLegacyError::InvalidSuffix)?;
 
-                match decode_base32_id(tail)
-                    .ok_or_else(|| DecodeLegacyError::InvalidSuffix)?
-                {
-                    (0, tail) => {
-                        Ok((Multibox(_Multibox::PrivateBox(cypher_raw)), tail))
-                    }
-                    (id, tail) => {
-                        Ok((Multibox(_Multibox::Other(id, cypher_raw)), tail))
-                    }
+                match decode_base32_id(tail).ok_or_else(|| DecodeLegacyError::InvalidSuffix)? {
+                    (0, tail) => Ok((Multibox(_Multibox::PrivateBox(cypher_raw)), tail)),
+                    (id, tail) => Ok((Multibox(_Multibox::Other(id, cypher_raw)), tail)),
                 }
             })
     }
@@ -87,7 +80,9 @@ impl Multibox {
     pub fn to_legacy_vec(&self) -> Vec<u8> {
         let capacity = match self.0 {
             _Multibox::PrivateBox(ref cyphertext) => ((cyphertext.len() * 4) / 3) + 4,
-            _Multibox::Other(id, ref cyphertext) => ((cyphertext.len() * 4) / 3) + 4 + id_len_base32(id),
+            _Multibox::Other(id, ref cyphertext) => {
+                ((cyphertext.len() * 4) / 3) + 4 + id_len_base32(id)
+            }
         };
 
         let mut out = Vec::with_capacity(capacity);
@@ -139,7 +134,8 @@ fn decode_base32_id(s: &[u8]) -> Option<(u64, &[u8])> {
 
     let mut acc: u64 = 0; // The id is built up in this variable.
 
-    for i in 0..13 { // 13 is the maximum length of an identifier
+    for i in 0..13 {
+        // 13 is the maximum length of an identifier
         match s.get(i) {
             None => return Some((acc, &[][..])), // end of input
             Some(c) => {
@@ -259,21 +255,48 @@ fn test_from_legacy() {
 
     match (Multibox::from_legacy(b".box").unwrap().0).0 {
         _Multibox::PrivateBox(data) => assert_eq!(data.len(), 0),
-        _ => panic!()
+        _ => panic!(),
     }
 
-    assert_matches!((Multibox::from_legacy(b"lA==.box").unwrap().0).0   , _Multibox::PrivateBox(..));
-    assert_matches!((Multibox::from_legacy(b"lA==.boxa").unwrap().0).0  , _Multibox::PrivateBox(..));
-    assert_matches!((Multibox::from_legacy(b"lA==.boxU").unwrap().0).0  , _Multibox::PrivateBox(..));
-    assert_matches!((Multibox::from_legacy(b"lA==.box\"").unwrap().0).0 , _Multibox::PrivateBox(..));
-    assert_matches!((Multibox::from_legacy(b"lA==.box1").unwrap().0).0  , _Multibox::Other(1             , _));
-    assert_matches!((Multibox::from_legacy(b"lA==.boxV").unwrap().0).0  , _Multibox::Other(27            , _));
-    assert_matches!((Multibox::from_legacy(b"lA==.box11").unwrap().0).0 , _Multibox::Other(0b00001_00001 , _));
-    assert_matches!((Multibox::from_legacy(b".boxNN").unwrap().0).0     , _Multibox::Other(0b10101_10101 , _));
+    assert_matches!(
+        (Multibox::from_legacy(b"lA==.box").unwrap().0).0,
+        _Multibox::PrivateBox(..)
+    );
+    assert_matches!(
+        (Multibox::from_legacy(b"lA==.boxa").unwrap().0).0,
+        _Multibox::PrivateBox(..)
+    );
+    assert_matches!(
+        (Multibox::from_legacy(b"lA==.boxU").unwrap().0).0,
+        _Multibox::PrivateBox(..)
+    );
+    assert_matches!(
+        (Multibox::from_legacy(b"lA==.box\"").unwrap().0).0,
+        _Multibox::PrivateBox(..)
+    );
+    assert_matches!(
+        (Multibox::from_legacy(b"lA==.box1").unwrap().0).0,
+        _Multibox::Other(1, _)
+    );
+    assert_matches!(
+        (Multibox::from_legacy(b"lA==.boxV").unwrap().0).0,
+        _Multibox::Other(27, _)
+    );
+    assert_matches!(
+        (Multibox::from_legacy(b"lA==.box11").unwrap().0).0,
+        _Multibox::Other(0b00001_00001, _)
+    );
+    assert_matches!(
+        (Multibox::from_legacy(b".boxNN").unwrap().0).0,
+        _Multibox::Other(0b10101_10101, _)
+    );
 }
 
 #[test]
 fn test_to_legacy() {
     assert_eq!(Multibox::new_private_box(vec![]).to_legacy_vec(), b".box");
-    assert_eq!(Multibox::new_multibox(0b10101_10101, vec![]).to_legacy_vec(), b".boxNN");
+    assert_eq!(
+        Multibox::new_multibox(0b10101_10101, vec![]).to_legacy_vec(),
+        b".boxNN"
+    );
 }

@@ -4,14 +4,13 @@ use std::fs::{self, File};
 use std::io::{self, prelude::*};
 use std::path::{Path, PathBuf};
 
-use ssb_multiformats::{multikey::Multikey, multihash::Multihash, multibox::Multibox};
+use ssb_multiformats::{multibox::Multibox, multihash::Multihash, multikey::Multikey};
 
 fn main() {
     handle_nays_key(Path::new("../multiformats-testdata/multikey/nay")).unwrap();
     handle_yays_key(Path::new("../multiformats-testdata/multikey/yay")).unwrap();
     handle_nays_hash(Path::new("../multiformats-testdata/multihash/nay")).unwrap();
     handle_yays_hash(Path::new("../multiformats-testdata/multihash/yay")).unwrap();
-
 
     let paths = fs::read_dir("./fuzz/corpus/roundtrip_box").unwrap();
 
