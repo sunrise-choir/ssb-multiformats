@@ -22,7 +22,7 @@ fn main() {
 
         match Multibox::from_legacy(&contents) {
             Ok(_) => {
-                let (actual, tail) = split_at_byte(&contents, 0x22).unwrap();
+                let (actual, _tail) = split_at_byte(&contents, 0x22).unwrap();
 
                 let mut p = PathBuf::from("../multiformats-testdata/multibox/yay");
                 p.push(path.file_name().unwrap());

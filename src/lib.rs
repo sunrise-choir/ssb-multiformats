@@ -2,9 +2,7 @@
 // #![warn(missing_docs)]
 
 extern crate base64;
-extern crate ring;
 extern crate serde;
-extern crate untrusted;
 
 #[cfg(test)]
 #[macro_use]
