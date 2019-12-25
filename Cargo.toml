@@ -4,6 +4,11 @@ version = "0.1.0"
 authors = ["AljoschaMeyer <mail@aljoscha-meyer.de>"]
 edition = "2018"
 license = "AGPL-3.0"
+description = "Key, feed id, and message hash types used by Secure Scuttlebutt"
+repository = "https://github.com/sunrise-choir/ssb-multiformats"
+documentation = "https://docs.rs/ssb-multiformats/"
+readme = "README.md"
+keywords = ["ssb", "scuttlebutt"]
 
 [dependencies]
 base64 = "0.11.0"
