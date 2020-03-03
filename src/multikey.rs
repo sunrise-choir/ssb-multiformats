@@ -28,6 +28,13 @@ impl Multikey {
         Multikey(_Multikey::Ed25519(PublicKey::from_slice(pk).unwrap()))
     }
 
+    pub fn into_ed25519_public_key(self) -> Option<PublicKey>{
+        match self {
+            Multikey(_Multikey::Ed25519(pk)) => Some(pk),
+            _ => None
+        }
+    }
+
     /// Parses a
     /// [legacy encoding](https://spec.scuttlebutt.nz/datatypes.html#multikey-legacy-encoding)
     /// into a `Multikey`, also returning the remaining input on success.

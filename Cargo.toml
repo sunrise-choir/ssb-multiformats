@@ -1,6 +1,6 @@
 [package]
 name = "ssb-multiformats"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["AljoschaMeyer <mail@aljoscha-meyer.de>"]
 edition = "2018"
 license = "AGPL-3.0"
