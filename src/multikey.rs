@@ -28,6 +28,10 @@ impl Multikey {
         Multikey(_Multikey::Ed25519(PublicKey::from_slice(pk).unwrap()))
     }
 
+    pub fn from_ed25519_slice(pk: &[u8]) -> Multikey {
+        Multikey(_Multikey::Ed25519(PublicKey::from_slice(pk).unwrap()))
+    }
+
     pub fn into_ed25519_public_key(self) -> Option<PublicKey>{
         match self {
             Multikey(_Multikey::Ed25519(pk)) => Some(pk),
