@@ -35,6 +35,6 @@ pub(crate) fn skip_prefix<'a>(input: &'a [u8], prefix: &[u8]) -> Option<&'a [u8]
     if input.starts_with(prefix) {
         Some(&input[prefix.len()..])
     } else {
-        None
+        Some(&input)
     }
 }
