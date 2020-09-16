@@ -43,7 +43,7 @@ impl Multikey {
     /// [legacy encoding](https://spec.scuttlebutt.nz/datatypes.html#multikey-legacy-encoding)
     /// into a `Multikey`, also returning the remaining input on success.
     pub fn from_legacy(mut s: &[u8]) -> Result<(Multikey, &[u8]), DecodeLegacyError> {
-        s = skip_prefix(s, b"@").ok_or_else(|| DecodeLegacyError::Sigil)?;
+        s = skip_prefix(s, b"@").unwrap_or_else(|| s);
 
         let (data, suffix) = split_at_byte(s, 0x2E).ok_or_else(|| DecodeLegacyError::NoDot)?;
 
@@ -137,8 +137,6 @@ impl<'de> Deserialize<'de> for Multikey {
 /// Everything that can go wrong when decoding a `Multikey` from the legacy encoding.
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum DecodeLegacyError {
-    /// Input did not start with the `"@"` sigil.
-    Sigil,
     /// Input did not contain a `"."` to separate the data from the suffix.
     NoDot,
     /// The base64 portion of the key was invalid.
@@ -152,7 +150,6 @@ pub enum DecodeLegacyError {
 impl fmt::Display for DecodeLegacyError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            &DecodeLegacyError::Sigil => write!(f, "Invalid sigil"),
             &DecodeLegacyError::InvalidBase64(ref err) => write!(f, "{}", err),
             &DecodeLegacyError::NoDot => write!(f, "No dot"),
             &DecodeLegacyError::UnknownSuffix => write!(f, "Unknown suffix"),
@@ -387,6 +384,9 @@ const SSB_ED25519_SECRET_ENCODED_LEN: usize = 96;
 fn test_from_legacy() {
     assert!(
         Multikey::from_legacy(b"@zurF8X68ArfRM71dF3mKh36W0xDM8QmOnAS5bYOq8hA=.ed25519").is_ok()
+    );
+    assert!(
+        Multikey::from_legacy(b"zurF8X68ArfRM71dF3mKh36W0xDM8QmOnAS5bYOq8hA=.ed25519").is_ok()
     );
     assert!(
         Multikey::from_legacy(b"@zurF8X68ArfRM71dF3mKh36W0xDM8QmOnAS5bYOq8hB=.ed25519").is_err()
