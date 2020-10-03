@@ -4,17 +4,14 @@ use super::multikey::{self, Multikey};
 
 /// A multifeed that owns its data.
 #[derive(Debug, PartialEq, Eq, Clone, PartialOrd, Ord, Hash)]
-pub struct Multifeed(_Multifeed);
-
-#[derive(Debug, PartialEq, Eq, Clone, PartialOrd, Ord, Hash)]
-enum _Multifeed {
+pub enum Multifeed {
     Multikey(Multikey),
 }
 
 impl Multifeed {
     /// Create a new multifeed of kind `multikey`.
     pub fn from_multikey(mk: Multikey) -> Multifeed {
-        Multifeed(_Multifeed::Multikey(mk))
+        Multifeed::Multikey(mk)
     }
 
     /// Parses a
@@ -37,16 +34,16 @@ impl Multifeed {
     /// Serialize a `Multifeed` into a writer, using the
     /// [legacy encoding](https://spec.scuttlebutt.nz/datatypes.html#multifeed-legacy-encoding).
     pub fn to_legacy<W: Write>(&self, w: &mut W) -> Result<(), io::Error> {
-        match self.0 {
-            _Multifeed::Multikey(ref mk) => mk.to_legacy(w),
+        match self {
+            Multifeed::Multikey(ref mk) => mk.to_legacy(w),
         }
     }
 
     /// Serialize a `Multifeed` into an owned byte vector, using the
     /// [legacy encoding](https://spec.scuttlebutt.nz/datatypes.html#multifeed-legacy-encoding).
     pub fn to_legacy_vec(&self) -> Vec<u8> {
-        match self.0 {
-            _Multifeed::Multikey(ref mk) => mk.to_legacy_vec(),
+        match self {
+            Multifeed::Multikey(ref mk) => mk.to_legacy_vec(),
         }
     }
 

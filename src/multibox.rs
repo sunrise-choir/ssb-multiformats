@@ -8,10 +8,7 @@ use super::*;
 
 #[derive(Debug, PartialEq, Eq, Clone, PartialOrd, Ord, Hash)]
 /// A multibox that owns its data. This does no decryption, it stores cyphertext.
-pub struct Multibox(_Multibox);
-
-#[derive(Debug, PartialEq, Eq, Clone, PartialOrd, Ord, Hash)]
-enum _Multibox {
+pub enum Multibox {
     // https://ssbc.github.io/scuttlebutt-protocol-guide/#private-messages
     PrivateBox(Vec<u8>),
     Other(u64, Vec<u8>),
@@ -20,14 +17,14 @@ enum _Multibox {
 impl Multibox {
     /// Creates a new private box multibox with the given secret text (*not* base64 encoded).
     pub fn new_private_box(secret: Vec<u8>) -> Multibox {
-        Multibox(_Multibox::PrivateBox(secret))
+        Multibox::PrivateBox(secret)
     }
 
     /// Creates a multibox with from the given identifier and the given secret text (*not* base64 encoded).
     pub fn new_multibox(id: u64, secret: Vec<u8>) -> Multibox {
         match id {
             0 => Multibox::new_private_box(secret),
-            _ => Multibox(_Multibox::Other(id, secret)),
+            _ => Multibox::Other(id, secret),
         }
     }
 
@@ -48,8 +45,8 @@ impl Multibox {
                     skip_prefix(suffix, b"box").ok_or_else(|| DecodeLegacyError::InvalidSuffix)?;
 
                 match decode_base32_id(tail).ok_or_else(|| DecodeLegacyError::InvalidSuffix)? {
-                    (0, tail) => Ok((Multibox(_Multibox::PrivateBox(cypher_raw)), tail)),
-                    (id, tail) => Ok((Multibox(_Multibox::Other(id, cypher_raw)), tail)),
+                    (0, tail) => Ok((Multibox::PrivateBox(cypher_raw), tail)),
+                    (id, tail) => Ok((Multibox::Other(id, cypher_raw), tail)),
                 }
             })
     }
@@ -57,20 +54,20 @@ impl Multibox {
     /// Serialize a `Multibox` into a writer, using the
     /// [legacy encoding](https://spec.scuttlebutt.nz/datatypes.html#multibox-legacy-encoding).
     pub fn to_legacy<W: Write>(&self, w: &mut W) -> Result<(), io::Error> {
-        match self.0 {
-            _Multibox::PrivateBox(ref bytes) => {
+        match self {
+            Multibox::PrivateBox(ref bytes) => {
                 let data = base64::encode_config(bytes, base64::STANDARD);
                 w.write_all(data.as_bytes())?;
 
                 w.write_all(b".box")
             }
 
-            _Multibox::Other(id, ref bytes) => {
+            Multibox::Other(id, ref bytes) => {
                 let data = base64::encode_config(bytes, base64::STANDARD);
                 w.write_all(data.as_bytes())?;
 
                 w.write_all(b".box")?;
-                w.write_all(&encode_base32_id(id)[..])
+                w.write_all(&encode_base32_id(*id)[..])
             }
         }
     }
@@ -78,10 +75,10 @@ impl Multibox {
     /// Serialize a `Multibox` into an owned byte vector, using the
     /// [legacy encoding](https://spec.scuttlebutt.nz/datatypes.html#multibox-legacy-encoding).
     pub fn to_legacy_vec(&self) -> Vec<u8> {
-        let capacity = match self.0 {
-            _Multibox::PrivateBox(ref cyphertext) => ((cyphertext.len() * 4) / 3) + 4,
-            _Multibox::Other(id, ref cyphertext) => {
-                ((cyphertext.len() * 4) / 3) + 4 + id_len_base32(id)
+        let capacity = match self {
+            Multibox::PrivateBox(ref cyphertext) => ((cyphertext.len() * 4) / 3) + 4,
+            Multibox::Other(id, ref cyphertext) => {
+                ((cyphertext.len() * 4) / 3) + 4 + id_len_base32(*id)
             }
         };
 
@@ -253,42 +250,42 @@ fn test_from_legacy() {
     assert!(Multibox::from_legacy(b"lA==.boxG0123456789AB").is_err());
     assert!(Multibox::from_legacy(b"lA==.boxF0123456789AB").is_ok());
 
-    match (Multibox::from_legacy(b".box").unwrap().0).0 {
-        _Multibox::PrivateBox(data) => assert_eq!(data.len(), 0),
+    match Multibox::from_legacy(b".box").unwrap().0 {
+        Multibox::PrivateBox(data) => assert_eq!(data.len(), 0),
         _ => panic!(),
     }
 
     assert_matches!(
-        (Multibox::from_legacy(b"lA==.box").unwrap().0).0,
-        _Multibox::PrivateBox(..)
+        Multibox::from_legacy(b"lA==.box").unwrap().0,
+        Multibox::PrivateBox(..)
     );
     assert_matches!(
-        (Multibox::from_legacy(b"lA==.boxa").unwrap().0).0,
-        _Multibox::PrivateBox(..)
+        Multibox::from_legacy(b"lA==.boxa").unwrap().0,
+        Multibox::PrivateBox(..)
     );
     assert_matches!(
-        (Multibox::from_legacy(b"lA==.boxU").unwrap().0).0,
-        _Multibox::PrivateBox(..)
+        Multibox::from_legacy(b"lA==.boxU").unwrap().0,
+        Multibox::PrivateBox(..)
     );
     assert_matches!(
-        (Multibox::from_legacy(b"lA==.box\"").unwrap().0).0,
-        _Multibox::PrivateBox(..)
+        Multibox::from_legacy(b"lA==.box\"").unwrap().0,
+        Multibox::PrivateBox(..)
     );
     assert_matches!(
-        (Multibox::from_legacy(b"lA==.box1").unwrap().0).0,
-        _Multibox::Other(1, _)
+        Multibox::from_legacy(b"lA==.box1").unwrap().0,
+        Multibox::Other(1, _)
     );
     assert_matches!(
-        (Multibox::from_legacy(b"lA==.boxV").unwrap().0).0,
-        _Multibox::Other(27, _)
+        Multibox::from_legacy(b"lA==.boxV").unwrap().0,
+        Multibox::Other(27, _)
     );
     assert_matches!(
-        (Multibox::from_legacy(b"lA==.box11").unwrap().0).0,
-        _Multibox::Other(0b00001_00001, _)
+        Multibox::from_legacy(b"lA==.box11").unwrap().0,
+        Multibox::Other(0b00001_00001, _)
     );
     assert_matches!(
-        (Multibox::from_legacy(b".boxNN").unwrap().0).0,
-        _Multibox::Other(0b10101_10101, _)
+        Multibox::from_legacy(b".boxNN").unwrap().0,
+        Multibox::Other(0b10101_10101, _)
     );
 }
 
