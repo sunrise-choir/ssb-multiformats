@@ -13,29 +13,19 @@ use super::*;
 
 /// A multihash that owns its data.
 #[derive(Debug, PartialEq, Eq, Clone, PartialOrd, Ord, Hash)]
-pub struct Multihash(pub Target, _Multihash);
-
-#[derive(Debug, PartialEq, Eq, Clone, Copy, PartialOrd, Ord, Hash)]
-/// What does the hash refer to?
-pub enum Target {
+pub enum Multihash {
     /// An ssb [message](https://spec.scuttlebutt.nz/messages.html).
-    Message,
+    Message([u8; 32]),
     /// An ssb [blob](TODO).
+    Blob([u8; 32]),
+}
+
+enum Target {
+    Message,
     Blob,
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, PartialOrd, Ord, Hash)]
-enum _Multihash {
-    // A [sha256](https://en.wikipedia.org/wiki/SHA-2) hash digest.
-    Sha256([u8; 32]),
-}
-
 impl Multihash {
-    /// Take a sha256 digest and turn it into an opaque `Multihash`.
-    pub fn from_sha256(digest: [u8; 32], target: Target) -> Multihash {
-        Multihash(target, _Multihash::Sha256(digest))
-    }
-
     /// Parses a
     /// [legacy encoding](https://spec.scuttlebutt.nz/datatypes.html#multihash-legacy-encoding)
     /// into a `Multihash`.
@@ -72,38 +62,45 @@ impl Multihash {
         let mut dec_data = [0u8; 32];
         base64::decode_config_slice(data, base64::STANDARD, &mut dec_data[..])
             .map_err(|e| DecodeLegacyError::InvalidBase64(e))
-            .map(|_| (Multihash(target, _Multihash::Sha256(dec_data)), tail))
+            .map(|_| {
+                let multihash = match target {
+                    Target::Blob => Multihash::Blob(dec_data),
+                    Target::Message => Multihash::Message(dec_data),
+                };
+                (multihash, tail)
+            })
     }
 
     /// Serialize a `Multihash` into a writer, using the
     /// [legacy encoding](https://spec.scuttlebutt.nz/datatypes.html#multihash-legacy-encoding).
     pub fn to_legacy<W: Write>(&self, w: &mut W) -> Result<(), io::Error> {
-        match self.1 {
-            _Multihash::Sha256(ref bytes) => {
-                match self.0 {
-                    Target::Message => w.write_all(b"%")?,
-                    Target::Blob => w.write_all(b"&")?,
-                }
+        match self {
+            Multihash::Message(ref bytes) => {
+                w.write_all(b"%")?;
+                Multihash::write_legacy_hash_and_suffix(bytes, w)
+            }
+            Multihash::Blob(ref bytes) => {
 
-                let data = base64::encode_config(bytes, base64::STANDARD);
-                w.write_all(data.as_bytes())?;
-
-                w.write_all(b".")?;
-                w.write_all(SHA256_SUFFIX)
+                w.write_all(b"&")?;
+                Multihash::write_legacy_hash_and_suffix(bytes, w)
             }
         }
+    }
+
+    fn write_legacy_hash_and_suffix<W: Write>(bytes: &[u8], w: &mut W) -> Result<(), io::Error> {
+        let data = base64::encode_config(bytes, base64::STANDARD);
+        w.write_all(data.as_bytes())?;
+
+        w.write_all(b".")?;
+        w.write_all(SHA256_SUFFIX)
     }
 
     /// Serialize a `Multihash` into an owned byte vector, using the
     /// [legacy encoding](https://spec.scuttlebutt.nz/datatypes.html#multihash-legacy-encoding).
     pub fn to_legacy_vec(&self) -> Vec<u8> {
-        match self.1 {
-            _Multihash::Sha256(_) => {
-                let mut out = Vec::with_capacity(SSB_SHA256_ENCODED_LEN);
-                self.to_legacy(&mut out).unwrap();
-                out
-            }
-        }
+        let mut out = Vec::with_capacity(SSB_SHA256_ENCODED_LEN);
+        self.to_legacy(&mut out).unwrap();
+        out
     }
 
     /// Serialize a `Multihash` into an owned string, using the
@@ -111,6 +108,7 @@ impl Multihash {
     pub fn to_legacy_string(&self) -> String {
         unsafe { String::from_utf8_unchecked(self.to_legacy_vec()) }
     }
+
 }
 
 impl Serialize for Multihash {

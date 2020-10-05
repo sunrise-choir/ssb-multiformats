@@ -14,10 +14,7 @@ use super::*;
 
 /// A multikey that owns its data.
 #[derive(Debug, PartialEq, Eq, Clone, PartialOrd, Ord, Hash)]
-pub struct Multikey(_Multikey);
-
-#[derive(Debug, PartialEq, Eq, Clone, PartialOrd, Ord, Hash)]
-enum _Multikey {
+pub enum Multikey {
     // An [ed25519](http://ed25519.cr.yp.to/) public key.
     Ed25519(PublicKey),
 }
@@ -25,17 +22,16 @@ enum _Multikey {
 impl Multikey {
     /// Take an ed25519 public key and turn it into an opaque `Multikey`.
     pub fn from_ed25519(pk: &[u8; 32]) -> Multikey {
-        Multikey(_Multikey::Ed25519(PublicKey::from_slice(pk).unwrap()))
+        Multikey::Ed25519(PublicKey::from_slice(pk).unwrap())
     }
 
     pub fn from_ed25519_slice(pk: &[u8]) -> Multikey {
-        Multikey(_Multikey::Ed25519(PublicKey::from_slice(pk).unwrap()))
+        Multikey::Ed25519(PublicKey::from_slice(pk).unwrap())
     }
 
     pub fn into_ed25519_public_key(self) -> Option<PublicKey>{
         match self {
-            Multikey(_Multikey::Ed25519(pk)) => Some(pk),
-            _ => None
+            Multikey::Ed25519(pk) => Some(pk),
         }
     }
 
@@ -72,8 +68,8 @@ impl Multikey {
     /// Serialize a `Multikey` into a writer, using the
     /// [legacy encoding](https://spec.scuttlebutt.nz/datatypes.html#multikey-legacy-encoding).
     pub fn to_legacy<W: Write>(&self, w: &mut W) -> Result<(), io::Error> {
-        match self.0 {
-            _Multikey::Ed25519(ref pk) => {
+        match self {
+            Multikey::Ed25519(ref pk) => {
                 w.write_all(b"@")?;
 
                 let data = base64::encode_config(&pk[..], base64::STANDARD);
@@ -88,8 +84,8 @@ impl Multikey {
     /// Serialize a `Multikey` into an owned byte vector, using the
     /// [legacy encoding](https://spec.scuttlebutt.nz/datatypes.html#multikey-legacy-encoding).
     pub fn to_legacy_vec(&self) -> Vec<u8> {
-        match self.0 {
-            _Multikey::Ed25519(_) => {
+        match self {
+            Multikey::Ed25519(_) => {
                 let mut out = Vec::with_capacity(SSB_ED25519_ENCODED_LEN);
                 self.to_legacy(&mut out).unwrap();
                 out
@@ -105,8 +101,8 @@ impl Multikey {
 
     /// Check whether the given signature of the given text was created by this key.
     pub fn is_signature_correct(&self, data: &[u8], sig: &Multisig) -> bool {
-        match (&self.0, &sig.0) {
-            (_Multikey::Ed25519(ref pk), _Multisig::Ed25519(ref sig)) => {
+        match (&self, &sig.0) {
+            (Multikey::Ed25519(ref pk), _Multisig::Ed25519(ref sig)) => {
                 verify_detached(sig, data, pk)
             }
         }
@@ -281,8 +277,8 @@ impl Multikey {
 
         let suffix = skip_prefix(suffix, b"sig").ok_or_else(|| DecodeSignatureError::NoDotSig)?;
 
-        match self.0 {
-            _Multikey::Ed25519(_) => {
+        match self {
+            Multikey::Ed25519(_) => {
                 let tail = skip_prefix(suffix, b".ed25519")
                     .ok_or_else(|| DecodeSignatureError::UnknownSuffix)?;
 
