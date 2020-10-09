@@ -1,5 +1,5 @@
 //! Implementation of [ssb multikeys](https://spec.scuttlebutt.nz/datatypes.html#multikey).
-use std::cmp::{Eq, Ord, Ordering, PartialEq, PartialOrd};
+use std::cmp::{Eq, Ord, PartialEq, PartialOrd};
 use std::fmt;
 use std::io::{self, Cursor, Write};
 
@@ -8,9 +8,9 @@ use serde::{
     de::{Deserialize, Deserializer, Error},
     ser::{Serialize, Serializer},
 };
-use ssb_crypto::{verify_detached, PublicKey, SecretKey, Signature, SECRETKEYBYTES};
+use ssb_crypto::{PublicKey, SecretKey, Signature, AsBytes};
+use crate::{skip_prefix, split_at_byte};
 
-use super::*;
 
 /// A multikey that owns its data.
 #[derive(Debug, PartialEq, Eq, Clone, PartialOrd, Ord, Hash)]
@@ -72,7 +72,7 @@ impl Multikey {
             Multikey::Ed25519(ref pk) => {
                 w.write_all(b"@")?;
 
-                let data = base64::encode_config(&pk[..], base64::STANDARD);
+                let data = base64::encode_config(pk.as_bytes(), base64::STANDARD);
                 w.write_all(data.as_bytes())?;
 
                 w.write_all(b".")?;
@@ -103,7 +103,7 @@ impl Multikey {
     pub fn is_signature_correct(&self, data: &[u8], sig: &Multisig) -> bool {
         match (&self, &sig.0) {
             (Multikey::Ed25519(ref pk), _Multisig::Ed25519(ref sig)) => {
-                verify_detached(sig, data, pk)
+                pk.verify(sig, data)
             }
         }
     }
@@ -160,7 +160,7 @@ impl fmt::Display for DecodeLegacyError {
 impl std::error::Error for DecodeLegacyError {}
 
 /// The secret counterpart to Multikey
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(Debug, Clone)]
 pub struct Multisecret(SecretKey);
 
 impl Multisecret {
@@ -173,15 +173,15 @@ impl Multisecret {
         let tail =
             skip_prefix(suffix, ED25519_SUFFIX).ok_or_else(|| DecodeLegacyError::UnknownSuffix)?;
 
-        if data.len() != SECRETKEYBYTES {
+        if data.len() != SecretKey::SIZE {
             return Err(DecodeLegacyError::Ed25519WrongSize);
         }
 
-        if data[SECRETKEYBYTES - 2] == b"="[0] {
+        if data[SecretKey::SIZE - 2] == b"="[0] {
             return Err(DecodeLegacyError::Ed25519WrongSize);
         }
 
-        if data[SECRETKEYBYTES - 1] != b"="[0] {
+        if data[SecretKey::SIZE - 1] != b"="[0] {
             return Err(DecodeLegacyError::Ed25519WrongSize);
         }
 
@@ -189,13 +189,16 @@ impl Multisecret {
 
         base64::decode_config_slice(data, base64::STANDARD, &mut dec_data)
             .map_err(|e| DecodeLegacyError::InvalidBase64(e))
-            .map(|_| (Multisecret(SecretKey::from_slice(&dec_data).unwrap()), tail))
+            .map(|_| {
+                let sk: SecretKey = SecretKey(dec_data);
+                (Multisecret(sk.to_owned()), tail)
+            })
     }
 
     /// Serialize a `Multisecret` into a writer, using the
     /// [legacy encoding](https://spec.scuttlebutt.nz/datatypes.html#multikey-legacy-encoding).
     pub fn to_legacy<W: Write>(&self, w: &mut W) -> Result<(), io::Error> {
-        let data = base64::encode_config(&self.0[..], base64::STANDARD);
+        let data = base64::encode_config(&self.0.0[..], base64::STANDARD);
         w.write_all(data.as_bytes())?;
         w.write_all(b".")?;
         w.write_all(ED25519_SUFFIX)
@@ -226,7 +229,7 @@ impl<'de> Deserialize<'de> for Multisecret {
 }
 
 /// A signature that owns its data.
-#[derive(Debug, PartialEq, Eq, Clone, PartialOrd, Ord)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Multisig(_Multisig);
 
 #[derive(Clone)]
@@ -238,7 +241,7 @@ enum _Multisig {
 impl fmt::Debug for _Multisig {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            _Multisig::Ed25519(ref data) => write!(f, "Ed25519 signature: {:?}", &data[..]),
+            _Multisig::Ed25519(data) => write!(f, "Ed25519 signature: {:?}", data.as_bytes()),
         }
     }
 }
@@ -246,26 +249,12 @@ impl fmt::Debug for _Multisig {
 impl PartialEq for _Multisig {
     fn eq(&self, other: &_Multisig) -> bool {
         match (self, other) {
-            (_Multisig::Ed25519(ref a), _Multisig::Ed25519(ref b)) => &a[..] == &b[..],
+            (_Multisig::Ed25519(ref a), _Multisig::Ed25519(ref b)) => a.as_bytes() == b.as_bytes(),
         }
     }
 }
 
 impl Eq for _Multisig {}
-
-impl PartialOrd for _Multisig {
-    fn partial_cmp(&self, other: &_Multisig) -> Option<Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-impl Ord for _Multisig {
-    fn cmp(&self, other: &_Multisig) -> Ordering {
-        match (self, other) {
-            (_Multisig::Ed25519(ref a), _Multisig::Ed25519(ref b)) => a.cmp(&b),
-        }
-    }
-}
 
 impl Multikey {
     /// Deserialize a legacy signature corrsponding to this key type.
@@ -311,7 +300,7 @@ impl Multisig {
     pub fn to_legacy<W: Write>(&self, w: &mut W) -> Result<(), io::Error> {
         match self.0 {
             _Multisig::Ed25519(ref sig) => {
-                let data = base64::encode_config(&sig[..], base64::STANDARD);
+                let data = base64::encode_config(&sig.0[..], base64::STANDARD);
                 w.write_all(data.as_bytes())?;
                 w.write_all(b".sig.ed25519")
             }
