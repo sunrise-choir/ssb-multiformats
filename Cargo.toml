@@ -13,7 +13,12 @@ keywords = ["ssb", "scuttlebutt"]
 [dependencies]
 base64 = "0.11.0"
 serde = "1.0.104"
-ssb-crypto = "0.2.1"
+ssb-crypto = {version = "0.2.1", default_features = false}
 
 [dev-dependencies]
 matches = "0.1.8"
+
+[features]
+default = ["dalek"]
+dalek = ["ssb-crypto/default"]
+sodium = ["ssb-crypto/sodium", "ssb-crypto/alloc"]
