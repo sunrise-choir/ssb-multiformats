@@ -170,10 +170,10 @@ impl Multisecret {
         let tail =
             skip_prefix(suffix, ED25519_SUFFIX).ok_or_else(|| DecodeLegacyError::UnknownSuffix)?;
 
-        let tail_str = std::str::from_utf8(data).map_err(|_| DecodeLegacyError::InvalidUTF8)?;
+        let data_str = std::str::from_utf8(data).map_err(|_| DecodeLegacyError::InvalidUTF8)?;
 
         let key_pair =
-            Keypair::from_base64(&tail_str).ok_or_else(|| DecodeLegacyError::InvalidBase64)?;
+            Keypair::from_base64(&data_str).ok_or_else(|| DecodeLegacyError::InvalidBase64)?;
 
         Ok((Multisecret(key_pair), tail))
     }
