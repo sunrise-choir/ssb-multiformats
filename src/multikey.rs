@@ -181,7 +181,7 @@ impl Multisecret {
     /// Serialize a `Multisecret` into a writer, using the
     /// [legacy encoding](https://spec.scuttlebutt.nz/datatypes.html#multikey-legacy-encoding).
     pub fn to_legacy<W: Write>(&self, w: &mut W) -> Result<(), io::Error> {
-        let data = base64::encode_config(&self.0.secret.0, base64::STANDARD);
+        let data = self.0.as_base64();
         w.write_all(data.as_bytes())?;
         w.write_all(b".")?;
         w.write_all(ED25519_SUFFIX)
