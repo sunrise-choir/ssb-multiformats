@@ -27,7 +27,7 @@ pub(crate) fn split_at_byte(input: &[u8], byte: u8) -> Option<(&[u8], &[u8])> {
         }
     }
 
-    return None;
+    None
 }
 
 // If the slice begins with the given prefix, return everything after that prefix.

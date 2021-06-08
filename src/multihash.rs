@@ -2,8 +2,6 @@
 use std::fmt;
 use std::io::{self, Write};
 
-use base64;
-
 use serde::{
     de::{Deserialize, Deserializer, Error},
     ser::{Serialize, Serializer},
@@ -36,16 +34,15 @@ impl Multihash {
             s = tail;
             target = Target::Message;
         } else {
-            let tail = skip_prefix(s, b"&").ok_or_else(|| DecodeLegacyError::Sigil)?;
+            let tail = skip_prefix(s, b"&").ok_or(DecodeLegacyError::Sigil)?;
 
             s = tail;
             target = Target::Blob;
         }
 
-        let (data, suffix) = split_at_byte(s, 0x2E).ok_or_else(|| DecodeLegacyError::NoDot)?;
+        let (data, suffix) = split_at_byte(s, 0x2E).ok_or(DecodeLegacyError::NoDot)?;
 
-        let tail =
-            skip_prefix(suffix, SHA256_SUFFIX).ok_or_else(|| DecodeLegacyError::UnknownSuffix)?;
+        let tail = skip_prefix(suffix, SHA256_SUFFIX).ok_or(DecodeLegacyError::UnknownSuffix)?;
 
         if data.len() != SHA256_BASE64_LEN {
             return Err(DecodeLegacyError::Sha256WrongSize);
@@ -61,7 +58,7 @@ impl Multihash {
 
         let mut dec_data = [0u8; 32];
         base64::decode_config_slice(data, base64::STANDARD, &mut dec_data[..])
-            .map_err(|e| DecodeLegacyError::InvalidBase64(e))
+            .map_err(DecodeLegacyError::InvalidBase64)
             .map(|_| {
                 let multihash = match target {
                     Target::Blob => Multihash::Blob(dec_data),
@@ -80,7 +77,6 @@ impl Multihash {
                 Multihash::write_legacy_hash_and_suffix(bytes, w)
             }
             Multihash::Blob(ref bytes) => {
-
                 w.write_all(b"&")?;
                 Multihash::write_legacy_hash_and_suffix(bytes, w)
             }
@@ -108,7 +104,6 @@ impl Multihash {
     pub fn to_legacy_string(&self) -> String {
         unsafe { String::from_utf8_unchecked(self.to_legacy_vec()) }
     }
-
 }
 
 impl Serialize for Multihash {
@@ -126,7 +121,7 @@ impl<'de> Deserialize<'de> for Multihash {
         D: Deserializer<'de>,
     {
         let s = String::deserialize(deserializer)?;
-        Multihash::from_legacy(&s.as_bytes())
+        Multihash::from_legacy(s.as_bytes())
             .map(|(mh, _)| mh)
             .map_err(|err| D::Error::custom(format!("Invalid multihash: {}", err)))
     }
@@ -150,11 +145,11 @@ pub enum DecodeLegacyError {
 impl fmt::Display for DecodeLegacyError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            &DecodeLegacyError::Sigil => write!(f, "Invalid sigil"),
-            &DecodeLegacyError::InvalidBase64(ref err) => write!(f, "{}", err),
-            &DecodeLegacyError::NoDot => write!(f, "No dot"),
-            &DecodeLegacyError::UnknownSuffix => write!(f, "Unknown suffix"),
-            &DecodeLegacyError::Sha256WrongSize => write!(f, "Data of wrong length"),
+            DecodeLegacyError::Sigil => write!(f, "Invalid sigil"),
+            DecodeLegacyError::InvalidBase64(ref err) => write!(f, "{}", err),
+            DecodeLegacyError::NoDot => write!(f, "No dot"),
+            DecodeLegacyError::UnknownSuffix => write!(f, "Unknown suffix"),
+            DecodeLegacyError::Sha256WrongSize => write!(f, "Data of wrong length"),
         }
     }
 }
@@ -162,7 +157,7 @@ impl fmt::Display for DecodeLegacyError {
 impl std::error::Error for DecodeLegacyError {}
 
 /// The legacy suffix indicating the sha256 cryptographic primitive.
-const SHA256_SUFFIX: &'static [u8] = b"sha256";
+const SHA256_SUFFIX: &[u8] = b"sha256";
 /// Length of a base64 encoded sha256 hash digest.
 const SHA256_BASE64_LEN: usize = 44;
 /// Length of a legacy-encoded ssb `Multihash` which uses the sha256 cryptographic primitive.

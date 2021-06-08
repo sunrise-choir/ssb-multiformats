@@ -4,7 +4,6 @@ use std::fmt;
 use std::io::{self, Cursor, Write};
 
 use crate::{skip_prefix, split_at_byte};
-use base64;
 use serde::{
     de::{Deserialize, Deserializer, Error},
     ser::{Serialize, Serializer},
@@ -39,12 +38,11 @@ impl Multikey {
     /// [legacy encoding](https://spec.scuttlebutt.nz/datatypes.html#multikey-legacy-encoding)
     /// into a `Multikey`, also returning the remaining input on success.
     pub fn from_legacy(mut s: &[u8]) -> Result<(Multikey, &[u8]), DecodeLegacyError> {
-        s = skip_prefix(s, b"@").ok_or_else(|| DecodeLegacyError::Sigil)?;
+        s = skip_prefix(s, b"@").ok_or(DecodeLegacyError::Sigil)?;
 
-        let (data, suffix) = split_at_byte(s, 0x2E).ok_or_else(|| DecodeLegacyError::NoDot)?;
+        let (data, suffix) = split_at_byte(s, 0x2E).ok_or(DecodeLegacyError::NoDot)?;
 
-        let tail =
-            skip_prefix(suffix, ED25519_SUFFIX).ok_or_else(|| DecodeLegacyError::UnknownSuffix)?;
+        let tail = skip_prefix(suffix, ED25519_SUFFIX).ok_or(DecodeLegacyError::UnknownSuffix)?;
 
         if data.len() != ED25519_PK_BASE64_LEN {
             return Err(DecodeLegacyError::Ed25519WrongSize);
@@ -118,7 +116,7 @@ impl<'de> Deserialize<'de> for Multikey {
         D: Deserializer<'de>,
     {
         let s = String::deserialize(deserializer)?;
-        Multikey::from_legacy(&s.as_bytes())
+        Multikey::from_legacy(s.as_bytes())
             .map(|(mk, _)| mk)
             .map_err(|err| D::Error::custom(format!("Invalid multikey: {}", err)))
     }
@@ -144,12 +142,12 @@ pub enum DecodeLegacyError {
 impl fmt::Display for DecodeLegacyError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            &DecodeLegacyError::Sigil => write!(f, "Invalid sigil"),
-            &DecodeLegacyError::InvalidUTF8 => write!(f, "Invalid utf8"),
-            &DecodeLegacyError::InvalidBase64 => write!(f, "Invalid base64"),
-            &DecodeLegacyError::NoDot => write!(f, "No dot"),
-            &DecodeLegacyError::UnknownSuffix => write!(f, "Unknown suffix"),
-            &DecodeLegacyError::Ed25519WrongSize => write!(f, "Data of wrong length"),
+            DecodeLegacyError::Sigil => write!(f, "Invalid sigil"),
+            DecodeLegacyError::InvalidUTF8 => write!(f, "Invalid utf8"),
+            DecodeLegacyError::InvalidBase64 => write!(f, "Invalid base64"),
+            DecodeLegacyError::NoDot => write!(f, "No dot"),
+            DecodeLegacyError::UnknownSuffix => write!(f, "Unknown suffix"),
+            DecodeLegacyError::Ed25519WrongSize => write!(f, "Data of wrong length"),
         }
     }
 }
@@ -165,15 +163,13 @@ impl Multisecret {
     /// [legacy encoding](https://spec.scuttlebutt.nz/datatypes.html#multikey-legacy-encoding)
     /// into a `Multisecret`, also returning the remaining input on success.
     pub fn from_legacy(s: &[u8]) -> Result<(Multisecret, &[u8]), DecodeLegacyError> {
-        let (data, suffix) = split_at_byte(s, 0x2E).ok_or_else(|| DecodeLegacyError::NoDot)?;
+        let (data, suffix) = split_at_byte(s, 0x2E).ok_or(DecodeLegacyError::NoDot)?;
 
-        let tail =
-            skip_prefix(suffix, ED25519_SUFFIX).ok_or_else(|| DecodeLegacyError::UnknownSuffix)?;
+        let tail = skip_prefix(suffix, ED25519_SUFFIX).ok_or(DecodeLegacyError::UnknownSuffix)?;
 
         let data_str = std::str::from_utf8(data).map_err(|_| DecodeLegacyError::InvalidUTF8)?;
 
-        let key_pair =
-            Keypair::from_base64(&data_str).ok_or_else(|| DecodeLegacyError::InvalidBase64)?;
+        let key_pair = Keypair::from_base64(data_str).ok_or(DecodeLegacyError::InvalidBase64)?;
 
         Ok((Multisecret(key_pair), tail))
     }
@@ -205,7 +201,7 @@ impl<'de> Deserialize<'de> for Multisecret {
         D: Deserializer<'de>,
     {
         let s = String::deserialize(deserializer)?;
-        Multisecret::from_legacy(&s.as_bytes())
+        Multisecret::from_legacy(s.as_bytes())
             .map(|(mk, _)| mk)
             .map_err(|err| D::Error::custom(format!("Invalid multikey: {}", err)))
     }
@@ -245,14 +241,14 @@ impl Multikey {
         &self,
         s: &'a [u8],
     ) -> Result<(Multisig, &'a [u8]), DecodeSignatureError> {
-        let (data, suffix) = split_at_byte(s, 0x2E).ok_or_else(|| DecodeSignatureError::NoDot)?;
+        let (data, suffix) = split_at_byte(s, 0x2E).ok_or(DecodeSignatureError::NoDot)?;
 
-        let suffix = skip_prefix(suffix, b"sig").ok_or_else(|| DecodeSignatureError::NoDotSig)?;
+        let suffix = skip_prefix(suffix, b"sig").ok_or(DecodeSignatureError::NoDotSig)?;
 
         match self {
             Multikey::Ed25519(_) => {
-                let tail = skip_prefix(suffix, b".ed25519")
-                    .ok_or_else(|| DecodeSignatureError::UnknownSuffix)?;
+                let tail =
+                    skip_prefix(suffix, b".ed25519").ok_or(DecodeSignatureError::UnknownSuffix)?;
 
                 if data.len() != ED25519_SIG_BASE64_LEN {
                     return Err(DecodeSignatureError::Ed25519WrongSize);
@@ -265,7 +261,7 @@ impl Multikey {
                 let mut dec_data = [0u8; 64];
 
                 base64::decode_config_slice(data, base64::STANDARD, &mut dec_data[..])
-                    .map_err(|e| DecodeSignatureError::InvalidBase64(e))
+                    .map_err(DecodeSignatureError::InvalidBase64)
                     .map(|_| (Multisig::from_ed25519(&dec_data), tail))
             }
         }
@@ -296,7 +292,7 @@ impl Multisig {
     pub fn to_legacy_vec(&self) -> Vec<u8> {
         let mut data = vec![];
         self.to_legacy(&mut data).unwrap();
-        data.into()
+        data
     }
 
     /// Serialize a signature into an owned string,
@@ -325,11 +321,11 @@ pub enum DecodeSignatureError {
 impl fmt::Display for DecodeSignatureError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            &DecodeSignatureError::InvalidBase64(ref err) => write!(f, "{}", err),
-            &DecodeSignatureError::NoDot => write!(f, "No dot"),
-            &DecodeSignatureError::NoDotSig => write!(f, "No .sig"),
-            &DecodeSignatureError::UnknownSuffix => write!(f, "Unknown suffix"),
-            &DecodeSignatureError::Ed25519WrongSize => write!(f, "Data of wrong length"),
+            DecodeSignatureError::InvalidBase64(ref err) => write!(f, "{}", err),
+            DecodeSignatureError::NoDot => write!(f, "No dot"),
+            DecodeSignatureError::NoDotSig => write!(f, "No .sig"),
+            DecodeSignatureError::UnknownSuffix => write!(f, "Unknown suffix"),
+            DecodeSignatureError::Ed25519WrongSize => write!(f, "Data of wrong length"),
         }
     }
 }
@@ -337,7 +333,7 @@ impl fmt::Display for DecodeSignatureError {
 impl std::error::Error for DecodeSignatureError {}
 
 /// The legacy suffix indicating the ed25519 cryptographic primitive.
-const ED25519_SUFFIX: &'static [u8] = b"ed25519";
+const ED25519_SUFFIX: &[u8] = b"ed25519";
 /// Length of a base64 encoded ed25519 public key.
 const ED25519_PK_BASE64_LEN: usize = 44;
 /// Length of a base64 encoded ed25519 public key.

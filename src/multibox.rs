@@ -2,8 +2,6 @@
 use std::fmt;
 use std::io::{self, Write};
 
-use base64;
-
 use super::*;
 
 #[derive(Debug, PartialEq, Eq, Clone, PartialOrd, Ord, Hash)]
@@ -32,19 +30,18 @@ impl Multibox {
     /// [legacy encoding](https://spec.scuttlebutt.nz/datatypes.html#multibox-legacy-encoding)
     /// into a `Multibox`, also returning the remaining input on success.
     pub fn from_legacy(s: &[u8]) -> Result<(Multibox, &[u8]), DecodeLegacyError> {
-        let (data, suffix) = split_at_byte(s, 0x2E).ok_or_else(|| DecodeLegacyError::NoDot)?;
+        let (data, suffix) = split_at_byte(s, 0x2E).ok_or(DecodeLegacyError::NoDot)?;
 
         base64::decode_config(data, base64::STANDARD)
-            .map_err(|base64_err| DecodeLegacyError::InvalidBase64(base64_err))
+            .map_err(DecodeLegacyError::InvalidBase64)
             .and_then(|cypher_raw| {
                 if data.len() % 4 != 0 {
                     return Err(DecodeLegacyError::NoncanonicPadding);
                 }
 
-                let tail =
-                    skip_prefix(suffix, b"box").ok_or_else(|| DecodeLegacyError::InvalidSuffix)?;
+                let tail = skip_prefix(suffix, b"box").ok_or(DecodeLegacyError::InvalidSuffix)?;
 
-                match decode_base32_id(tail).ok_or_else(|| DecodeLegacyError::InvalidSuffix)? {
+                match decode_base32_id(tail).ok_or(DecodeLegacyError::InvalidSuffix)? {
                     (0, tail) => Ok((Multibox::PrivateBox(cypher_raw), tail)),
                     (id, tail) => Ok((Multibox::Other(id, cypher_raw), tail)),
                 }
@@ -110,10 +107,10 @@ pub enum DecodeLegacyError {
 impl fmt::Display for DecodeLegacyError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            &DecodeLegacyError::InvalidBase64(ref err) => write!(f, "{}", err),
-            &DecodeLegacyError::NoncanonicPadding => write!(f, "Incorrect number of padding '='s"),
-            &DecodeLegacyError::NoDot => write!(f, "No dot"),
-            &DecodeLegacyError::InvalidSuffix => write!(f, "Invalid suffix"),
+            DecodeLegacyError::InvalidBase64(ref err) => write!(f, "{}", err),
+            DecodeLegacyError::NoncanonicPadding => write!(f, "Incorrect number of padding '='s"),
+            DecodeLegacyError::NoDot => write!(f, "No dot"),
+            DecodeLegacyError::InvalidSuffix => write!(f, "Invalid suffix"),
         }
     }
 }
@@ -181,9 +178,8 @@ fn decode_base32_id(s: &[u8]) -> Option<(u64, &[u8])> {
             }
         }
     }
-
-    // Reached maximum length of an identifier, return the decoded value and the remainig input.
-    return Some((acc, &s[13..]));
+    // Reached maximum length of an identifier, return the decoded value and the remaining input.
+    Some((acc, &s[13..]))
 }
 
 fn id_len_base32(id: u64) -> usize {
@@ -239,7 +235,7 @@ fn encode_base32_id(id: u64) -> Vec<u8> {
         out.push(symbol);
     }
 
-    return out;
+    out
 }
 
 #[test]

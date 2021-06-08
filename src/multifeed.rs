@@ -18,16 +18,16 @@ impl Multifeed {
     /// [legacy encoding](https://spec.scuttlebutt.nz/datatypes.html#multifeed-legacy-encoding)
     /// into a `Multifeed`, also returning the remaining input on success.
     pub fn from_legacy(s: &[u8]) -> Result<(Multifeed, &[u8]), DecodeLegacyError> {
-        if s.len() == 0 {
+        if s.is_empty() {
             return Err(DecodeLegacyError::UnknownKind);
         }
 
         match s[0] {
             0x40 => {
                 let (mk, tail) = Multikey::from_legacy(s)?;
-                return Ok((Multifeed::from_multikey(mk), tail));
+                Ok((Multifeed::from_multikey(mk), tail))
             }
-            _ => return Err(DecodeLegacyError::UnknownKind),
+            _ => Err(DecodeLegacyError::UnknownKind),
         }
     }
 
