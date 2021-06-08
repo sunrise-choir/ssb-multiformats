@@ -15,24 +15,24 @@ impl Multifeed {
     }
 
     /// Parses a
-    /// [legacy encoding](https://spec.scuttlebutt.nz/datatypes.html#multifeed-legacy-encoding)
+    /// [legacy encoding](https://spec.scuttlebutt.nz/feed/datatypes.html#multifeed-legacy-encoding)
     /// into a `Multifeed`, also returning the remaining input on success.
     pub fn from_legacy(s: &[u8]) -> Result<(Multifeed, &[u8]), DecodeLegacyError> {
-        if s.len() == 0 {
+        if s.is_empty() {
             return Err(DecodeLegacyError::UnknownKind);
         }
 
         match s[0] {
             0x40 => {
                 let (mk, tail) = Multikey::from_legacy(s)?;
-                return Ok((Multifeed::from_multikey(mk), tail));
+                Ok((Multifeed::from_multikey(mk), tail))
             }
-            _ => return Err(DecodeLegacyError::UnknownKind),
+            _ => Err(DecodeLegacyError::UnknownKind),
         }
     }
 
     /// Serialize a `Multifeed` into a writer, using the
-    /// [legacy encoding](https://spec.scuttlebutt.nz/datatypes.html#multifeed-legacy-encoding).
+    /// [legacy encoding](https://spec.scuttlebutt.nz/feed/datatypes.html#multifeed-legacy-encoding).
     pub fn to_legacy<W: Write>(&self, w: &mut W) -> Result<(), io::Error> {
         match self {
             Multifeed::Multikey(ref mk) => mk.to_legacy(w),
@@ -40,7 +40,7 @@ impl Multifeed {
     }
 
     /// Serialize a `Multifeed` into an owned byte vector, using the
-    /// [legacy encoding](https://spec.scuttlebutt.nz/datatypes.html#multifeed-legacy-encoding).
+    /// [legacy encoding](https://spec.scuttlebutt.nz/feed/datatypes.html#multifeed-legacy-encoding).
     pub fn to_legacy_vec(&self) -> Vec<u8> {
         match self {
             Multifeed::Multikey(ref mk) => mk.to_legacy_vec(),
@@ -48,7 +48,7 @@ impl Multifeed {
     }
 
     /// Serialize a `Multifeed` into an owned string, using the
-    /// [legacy encoding](https://spec.scuttlebutt.nz/datatypes.html#multifeed-legacy-encoding).
+    /// [legacy encoding](https://spec.scuttlebutt.nz/feed/datatypes.html#multifeed-legacy-encoding).
     pub fn to_legacy_string(&self) -> String {
         unsafe { String::from_utf8_unchecked(self.to_legacy_vec()) }
     }

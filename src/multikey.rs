@@ -1,10 +1,9 @@
-//! Implementation of [ssb multikeys](https://spec.scuttlebutt.nz/datatypes.html#multikey).
+//! Implementation of [ssb multikeys](https://spec.scuttlebutt.nz/feed/datatypes.html#multikey).
 use std::cmp::{Eq, Ord, PartialEq, PartialOrd};
 use std::fmt;
 use std::io::{self, Cursor, Write};
 
 use crate::{skip_prefix, split_at_byte};
-use base64;
 use serde::{
     de::{Deserialize, Deserializer, Error},
     ser::{Serialize, Serializer},
@@ -36,15 +35,14 @@ impl Multikey {
     }
 
     /// Parses a
-    /// [legacy encoding](https://spec.scuttlebutt.nz/datatypes.html#multikey-legacy-encoding)
+    /// [legacy encoding](https://spec.scuttlebutt.nz/feed/datatypes.html#multikey-legacy-encoding)
     /// into a `Multikey`, also returning the remaining input on success.
     pub fn from_legacy(mut s: &[u8]) -> Result<(Multikey, &[u8]), DecodeLegacyError> {
-        s = skip_prefix(s, b"@").ok_or_else(|| DecodeLegacyError::Sigil)?;
+        s = skip_prefix(s, b"@").ok_or(DecodeLegacyError::Sigil)?;
 
-        let (data, suffix) = split_at_byte(s, 0x2E).ok_or_else(|| DecodeLegacyError::NoDot)?;
+        let (data, suffix) = split_at_byte(s, 0x2E).ok_or(DecodeLegacyError::NoDot)?;
 
-        let tail =
-            skip_prefix(suffix, ED25519_SUFFIX).ok_or_else(|| DecodeLegacyError::UnknownSuffix)?;
+        let tail = skip_prefix(suffix, ED25519_SUFFIX).ok_or(DecodeLegacyError::UnknownSuffix)?;
 
         if data.len() != ED25519_PK_BASE64_LEN {
             return Err(DecodeLegacyError::Ed25519WrongSize);
@@ -58,7 +56,7 @@ impl Multikey {
             return Err(DecodeLegacyError::Ed25519WrongSize);
         }
 
-        let mut dec_data = [0u8; 32];
+        let mut dec_data = [0_u8; 32];
 
         base64::decode_config_slice(data, base64::STANDARD, &mut dec_data)
             .map_err(|_| DecodeLegacyError::InvalidBase64)
@@ -66,7 +64,7 @@ impl Multikey {
     }
 
     /// Serialize a `Multikey` into a writer, using the
-    /// [legacy encoding](https://spec.scuttlebutt.nz/datatypes.html#multikey-legacy-encoding).
+    /// [legacy encoding](https://spec.scuttlebutt.nz/feed/datatypes.html#multikey-legacy-encoding).
     pub fn to_legacy<W: Write>(&self, w: &mut W) -> Result<(), io::Error> {
         match self {
             Multikey::Ed25519(ref pk) => {
@@ -82,7 +80,7 @@ impl Multikey {
     }
 
     /// Serialize a `Multikey` into an owned byte vector, using the
-    /// [legacy encoding](https://spec.scuttlebutt.nz/datatypes.html#multikey-legacy-encoding).
+    /// [legacy encoding](https://spec.scuttlebutt.nz/feed/datatypes.html#multikey-legacy-encoding).
     pub fn to_legacy_vec(&self) -> Vec<u8> {
         let mut data = vec![];
         self.to_legacy(&mut data).unwrap();
@@ -90,7 +88,7 @@ impl Multikey {
     }
 
     /// Serialize a `Multikey` into an owned string, using the
-    /// [legacy encoding](https://spec.scuttlebutt.nz/datatypes.html#multikey-legacy-encoding).
+    /// [legacy encoding](https://spec.scuttlebutt.nz/feed/datatypes.html#multikey-legacy-encoding).
     pub fn to_legacy_string(&self) -> String {
         String::from_utf8(self.to_legacy_vec()).unwrap()
     }
@@ -118,7 +116,7 @@ impl<'de> Deserialize<'de> for Multikey {
         D: Deserializer<'de>,
     {
         let s = String::deserialize(deserializer)?;
-        Multikey::from_legacy(&s.as_bytes())
+        Multikey::from_legacy(s.as_bytes())
             .map(|(mk, _)| mk)
             .map_err(|err| D::Error::custom(format!("Invalid multikey: {}", err)))
     }
@@ -131,7 +129,7 @@ pub enum DecodeLegacyError {
     Sigil,
     /// Input did not contain a `"."` to separate the data from the suffix.
     NoDot,
-    /// Invalid utf8 string
+    /// Invalid utf8 string.
     InvalidUTF8,
     /// The base64 portion of the key was invalid.
     InvalidBase64,
@@ -144,42 +142,40 @@ pub enum DecodeLegacyError {
 impl fmt::Display for DecodeLegacyError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            &DecodeLegacyError::Sigil => write!(f, "Invalid sigil"),
-            &DecodeLegacyError::InvalidUTF8 => write!(f, "Invalid utf8"),
-            &DecodeLegacyError::InvalidBase64 => write!(f, "Invalid base64"),
-            &DecodeLegacyError::NoDot => write!(f, "No dot"),
-            &DecodeLegacyError::UnknownSuffix => write!(f, "Unknown suffix"),
-            &DecodeLegacyError::Ed25519WrongSize => write!(f, "Data of wrong length"),
+            DecodeLegacyError::Sigil => write!(f, "Invalid sigil"),
+            DecodeLegacyError::InvalidUTF8 => write!(f, "Invalid utf8"),
+            DecodeLegacyError::InvalidBase64 => write!(f, "Invalid base64"),
+            DecodeLegacyError::NoDot => write!(f, "No dot"),
+            DecodeLegacyError::UnknownSuffix => write!(f, "Unknown suffix"),
+            DecodeLegacyError::Ed25519WrongSize => write!(f, "Data of wrong length"),
         }
     }
 }
 
 impl std::error::Error for DecodeLegacyError {}
 
-/// The secret counterpart to Multikey
+/// The secret counterpart to Multikey.
 #[derive(Debug, Clone)]
 pub struct Multisecret(Keypair);
 
 impl Multisecret {
     /// Parses a
-    /// [legacy encoding](https://spec.scuttlebutt.nz/datatypes.html#multikey-legacy-encoding)
+    /// [legacy encoding](https://spec.scuttlebutt.nz/feed/datatypes.html#multikey-legacy-encoding)
     /// into a `Multisecret`, also returning the remaining input on success.
     pub fn from_legacy(s: &[u8]) -> Result<(Multisecret, &[u8]), DecodeLegacyError> {
-        let (data, suffix) = split_at_byte(s, 0x2E).ok_or_else(|| DecodeLegacyError::NoDot)?;
+        let (data, suffix) = split_at_byte(s, 0x2E).ok_or(DecodeLegacyError::NoDot)?;
 
-        let tail =
-            skip_prefix(suffix, ED25519_SUFFIX).ok_or_else(|| DecodeLegacyError::UnknownSuffix)?;
+        let tail = skip_prefix(suffix, ED25519_SUFFIX).ok_or(DecodeLegacyError::UnknownSuffix)?;
 
         let data_str = std::str::from_utf8(data).map_err(|_| DecodeLegacyError::InvalidUTF8)?;
 
-        let key_pair =
-            Keypair::from_base64(&data_str).ok_or_else(|| DecodeLegacyError::InvalidBase64)?;
+        let key_pair = Keypair::from_base64(data_str).ok_or(DecodeLegacyError::InvalidBase64)?;
 
         Ok((Multisecret(key_pair), tail))
     }
 
     /// Serialize a `Multisecret` into a writer, using the
-    /// [legacy encoding](https://spec.scuttlebutt.nz/datatypes.html#multikey-legacy-encoding).
+    /// [legacy encoding](https://spec.scuttlebutt.nz/feed/datatypes.html#multikey-legacy-encoding).
     pub fn to_legacy<W: Write>(&self, w: &mut W) -> Result<(), io::Error> {
         let data = self.0.as_base64();
         w.write_all(data.as_bytes())?;
@@ -193,7 +189,7 @@ impl Serialize for Multisecret {
     where
         S: Serializer,
     {
-        let mut s = [0u8; SSB_ED25519_SECRET_ENCODED_LEN];
+        let mut s = [0_u8; SSB_ED25519_SECRET_ENCODED_LEN];
         self.to_legacy(&mut Cursor::new(&mut s[..])).unwrap();
         serializer.serialize_str(std::str::from_utf8(&s).unwrap())
     }
@@ -205,7 +201,7 @@ impl<'de> Deserialize<'de> for Multisecret {
         D: Deserializer<'de>,
     {
         let s = String::deserialize(deserializer)?;
-        Multisecret::from_legacy(&s.as_bytes())
+        Multisecret::from_legacy(s.as_bytes())
             .map(|(mk, _)| mk)
             .map_err(|err| D::Error::custom(format!("Invalid multikey: {}", err)))
     }
@@ -240,19 +236,19 @@ impl PartialEq for _Multisig {
 impl Eq for _Multisig {}
 
 impl Multikey {
-    /// Deserialize a legacy signature corrsponding to this key type.
+    /// Deserialize a legacy signature corresponding to this key type.
     pub fn sig_from_legacy<'a>(
         &self,
         s: &'a [u8],
     ) -> Result<(Multisig, &'a [u8]), DecodeSignatureError> {
-        let (data, suffix) = split_at_byte(s, 0x2E).ok_or_else(|| DecodeSignatureError::NoDot)?;
+        let (data, suffix) = split_at_byte(s, 0x2E).ok_or(DecodeSignatureError::NoDot)?;
 
-        let suffix = skip_prefix(suffix, b"sig").ok_or_else(|| DecodeSignatureError::NoDotSig)?;
+        let suffix = skip_prefix(suffix, b"sig").ok_or(DecodeSignatureError::NoDotSig)?;
 
         match self {
             Multikey::Ed25519(_) => {
-                let tail = skip_prefix(suffix, b".ed25519")
-                    .ok_or_else(|| DecodeSignatureError::UnknownSuffix)?;
+                let tail =
+                    skip_prefix(suffix, b".ed25519").ok_or(DecodeSignatureError::UnknownSuffix)?;
 
                 if data.len() != ED25519_SIG_BASE64_LEN {
                     return Err(DecodeSignatureError::Ed25519WrongSize);
@@ -262,10 +258,10 @@ impl Multikey {
                     return Err(DecodeSignatureError::Ed25519WrongSize);
                 }
 
-                let mut dec_data = [0u8; 64];
+                let mut dec_data = [0_u8; 64];
 
                 base64::decode_config_slice(data, base64::STANDARD, &mut dec_data[..])
-                    .map_err(|e| DecodeSignatureError::InvalidBase64(e))
+                    .map_err(DecodeSignatureError::InvalidBase64)
                     .map(|_| (Multisig::from_ed25519(&dec_data), tail))
             }
         }
@@ -279,7 +275,7 @@ impl Multisig {
     }
 
     /// Serialize a signature into a writer, in the appropriate
-    /// form for a [legacy message](https://spec.scuttlebutt.nz/messages.html#legacy-json-encoding).
+    /// form for a [legacy message](https://spec.scuttlebutt.nz/feed/messages.html#legacy-json-encoding).
     pub fn to_legacy<W: Write>(&self, w: &mut W) -> Result<(), io::Error> {
         match self.0 {
             _Multisig::Ed25519(ref sig) => {
@@ -292,16 +288,16 @@ impl Multisig {
 
     /// Serialize a signature into an owned byte vector,
     /// in the appropriate form for a
-    /// [legacy message](https://spec.scuttlebutt.nz/messages.html#legacy-json-encoding).
+    /// [legacy message](https://spec.scuttlebutt.nz/feed/messages.html#legacy-json-encoding).
     pub fn to_legacy_vec(&self) -> Vec<u8> {
         let mut data = vec![];
         self.to_legacy(&mut data).unwrap();
-        data.into()
+        data
     }
 
     /// Serialize a signature into an owned string,
     /// in the appropriate form for a
-    /// [legacy message](https://spec.scuttlebutt.nz/messages.html#legacy-json-encoding).
+    /// [legacy message](https://spec.scuttlebutt.nz/feed/messages.html#legacy-json-encoding).
     pub fn to_legacy_string(&self) -> String {
         String::from_utf8(self.to_legacy_vec()).unwrap()
     }
@@ -325,11 +321,11 @@ pub enum DecodeSignatureError {
 impl fmt::Display for DecodeSignatureError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            &DecodeSignatureError::InvalidBase64(ref err) => write!(f, "{}", err),
-            &DecodeSignatureError::NoDot => write!(f, "No dot"),
-            &DecodeSignatureError::NoDotSig => write!(f, "No .sig"),
-            &DecodeSignatureError::UnknownSuffix => write!(f, "Unknown suffix"),
-            &DecodeSignatureError::Ed25519WrongSize => write!(f, "Data of wrong length"),
+            DecodeSignatureError::InvalidBase64(ref err) => write!(f, "{}", err),
+            DecodeSignatureError::NoDot => write!(f, "No dot"),
+            DecodeSignatureError::NoDotSig => write!(f, "No .sig"),
+            DecodeSignatureError::UnknownSuffix => write!(f, "Unknown suffix"),
+            DecodeSignatureError::Ed25519WrongSize => write!(f, "Data of wrong length"),
         }
     }
 }
@@ -337,7 +333,7 @@ impl fmt::Display for DecodeSignatureError {
 impl std::error::Error for DecodeSignatureError {}
 
 /// The legacy suffix indicating the ed25519 cryptographic primitive.
-const ED25519_SUFFIX: &'static [u8] = b"ed25519";
+const ED25519_SUFFIX: &[u8] = b"ed25519";
 /// Length of a base64 encoded ed25519 public key.
 const ED25519_PK_BASE64_LEN: usize = 44;
 /// Length of a base64 encoded ed25519 public key.

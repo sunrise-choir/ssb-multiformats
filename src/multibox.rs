@@ -1,10 +1,8 @@
-//! Implementation of [ssb multiboxes](https://spec.scuttlebutt.nz/datatypes.html#multibox).
+//! Implementation of [ssb multiboxes](https://spec.scuttlebutt.nz/feed/datatypes.html#multibox).
 use std::fmt;
 use std::io::{self, Write};
 
-use base64;
-
-use super::*;
+use super::{base64, skip_prefix, split_at_byte};
 
 #[derive(Debug, PartialEq, Eq, Clone, PartialOrd, Ord, Hash)]
 /// A multibox that owns its data. This does no decryption, it stores cyphertext.
@@ -20,7 +18,7 @@ impl Multibox {
         Multibox::PrivateBox(secret)
     }
 
-    /// Creates a multibox with from the given identifier and the given secret text (*not* base64 encoded).
+    /// Creates a multibox with the given identifier and the given secret text (*not* base64 encoded).
     pub fn new_multibox(id: u64, secret: Vec<u8>) -> Multibox {
         match id {
             0 => Multibox::new_private_box(secret),
@@ -29,22 +27,21 @@ impl Multibox {
     }
 
     /// Parses a
-    /// [legacy encoding](https://spec.scuttlebutt.nz/datatypes.html#multibox-legacy-encoding)
+    /// [legacy encoding](https://spec.scuttlebutt.nz/feed/datatypes.html#multibox-legacy-encoding)
     /// into a `Multibox`, also returning the remaining input on success.
     pub fn from_legacy(s: &[u8]) -> Result<(Multibox, &[u8]), DecodeLegacyError> {
-        let (data, suffix) = split_at_byte(s, 0x2E).ok_or_else(|| DecodeLegacyError::NoDot)?;
+        let (data, suffix) = split_at_byte(s, 0x2E).ok_or(DecodeLegacyError::NoDot)?;
 
         base64::decode_config(data, base64::STANDARD)
-            .map_err(|base64_err| DecodeLegacyError::InvalidBase64(base64_err))
+            .map_err(DecodeLegacyError::InvalidBase64)
             .and_then(|cypher_raw| {
                 if data.len() % 4 != 0 {
                     return Err(DecodeLegacyError::NoncanonicPadding);
                 }
 
-                let tail =
-                    skip_prefix(suffix, b"box").ok_or_else(|| DecodeLegacyError::InvalidSuffix)?;
+                let tail = skip_prefix(suffix, b"box").ok_or(DecodeLegacyError::InvalidSuffix)?;
 
-                match decode_base32_id(tail).ok_or_else(|| DecodeLegacyError::InvalidSuffix)? {
+                match decode_base32_id(tail).ok_or(DecodeLegacyError::InvalidSuffix)? {
                     (0, tail) => Ok((Multibox::PrivateBox(cypher_raw), tail)),
                     (id, tail) => Ok((Multibox::Other(id, cypher_raw), tail)),
                 }
@@ -52,7 +49,7 @@ impl Multibox {
     }
 
     /// Serialize a `Multibox` into a writer, using the
-    /// [legacy encoding](https://spec.scuttlebutt.nz/datatypes.html#multibox-legacy-encoding).
+    /// [legacy encoding](https://spec.scuttlebutt.nz/feed/datatypes.html#multibox-legacy-encoding).
     pub fn to_legacy<W: Write>(&self, w: &mut W) -> Result<(), io::Error> {
         match self {
             Multibox::PrivateBox(ref bytes) => {
@@ -73,7 +70,7 @@ impl Multibox {
     }
 
     /// Serialize a `Multibox` into an owned byte vector, using the
-    /// [legacy encoding](https://spec.scuttlebutt.nz/datatypes.html#multibox-legacy-encoding).
+    /// [legacy encoding](https://spec.scuttlebutt.nz/feed/datatypes.html#multibox-legacy-encoding).
     pub fn to_legacy_vec(&self) -> Vec<u8> {
         let capacity = match self {
             Multibox::PrivateBox(ref cyphertext) => ((cyphertext.len() * 4) / 3) + 4,
@@ -88,7 +85,7 @@ impl Multibox {
     }
 
     /// Serialize a `Multibox` into an owned string, using the
-    /// [legacy encoding](https://spec.scuttlebutt.nz/datatypes.html#multibox-legacy-encoding).
+    /// [legacy encoding](https://spec.scuttlebutt.nz/feed/datatypes.html#multibox-legacy-encoding).
     pub fn to_legacy_string(&self) -> String {
         unsafe { String::from_utf8_unchecked(self.to_legacy_vec()) }
     }
@@ -110,10 +107,10 @@ pub enum DecodeLegacyError {
 impl fmt::Display for DecodeLegacyError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            &DecodeLegacyError::InvalidBase64(ref err) => write!(f, "{}", err),
-            &DecodeLegacyError::NoncanonicPadding => write!(f, "Incorrect number of padding '='s"),
-            &DecodeLegacyError::NoDot => write!(f, "No dot"),
-            &DecodeLegacyError::InvalidSuffix => write!(f, "Invalid suffix"),
+            DecodeLegacyError::InvalidBase64(ref err) => write!(f, "{}", err),
+            DecodeLegacyError::NoncanonicPadding => write!(f, "Incorrect number of padding '='s"),
+            DecodeLegacyError::NoDot => write!(f, "No dot"),
+            DecodeLegacyError::InvalidSuffix => write!(f, "Invalid suffix"),
         }
     }
 }
@@ -121,7 +118,7 @@ impl fmt::Display for DecodeLegacyError {
 impl std::error::Error for DecodeLegacyError {}
 
 // Decode the legacy format id of a multibox (canonic crockford base32, no leading zeros, at most 2^64 - 1).
-// Stops decoding when encounterig end of input, a non-base32 character, or at the maximum identifier length.
+// Stops decoding when encountering end of input, a non-base32 character, or at the maximum identifier length.
 // In all these cases, it returns `Some(decoded)`, `None` is only returned if the first input
 // character is a zero or if a large identifier has a non-canonical first character.
 fn decode_base32_id(s: &[u8]) -> Option<(u64, &[u8])> {
@@ -181,9 +178,8 @@ fn decode_base32_id(s: &[u8]) -> Option<(u64, &[u8])> {
             }
         }
     }
-
-    // Reached maximum length of an identifier, return the decoded value and the remainig input.
-    return Some((acc, &s[13..]));
+    // Reached maximum length of an identifier, return the decoded value and the remaining input.
+    Some((acc, &s[13..]))
 }
 
 fn id_len_base32(id: u64) -> usize {
@@ -239,7 +235,7 @@ fn encode_base32_id(id: u64) -> Vec<u8> {
         out.push(symbol);
     }
 
-    return out;
+    out
 }
 
 #[test]
