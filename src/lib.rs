@@ -1,4 +1,4 @@
-//! Implementations of the [ssb multiformats](https://spec.scuttlebutt.nz/datatypes.html).
+//! Implementations of the [ssb multiformats](https://spec.scuttlebutt.nz/feed/datatypes.html).
 // #![warn(missing_docs)]
 
 extern crate base64;
@@ -17,7 +17,7 @@ pub mod multikey;
 // A bunch of helper functions used throughout the crate for parsing legacy encodings.
 ////////////////////////////////////////////////////////////////////////////////
 
-// Split the input slice at the first occurence o the given byte, the byte itself is not
+// Split the input slice at the first occurence of the given byte, the byte itself is not
 // part of any of the returned slices. Return `None` if the byte is not found in the input.
 pub(crate) fn split_at_byte(input: &[u8], byte: u8) -> Option<(&[u8], &[u8])> {
     for i in 0..input.len() {

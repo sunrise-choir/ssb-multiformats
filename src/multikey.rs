@@ -1,4 +1,4 @@
-//! Implementation of [ssb multikeys](https://spec.scuttlebutt.nz/datatypes.html#multikey).
+//! Implementation of [ssb multikeys](https://spec.scuttlebutt.nz/feed/datatypes.html#multikey).
 use std::cmp::{Eq, Ord, PartialEq, PartialOrd};
 use std::fmt;
 use std::io::{self, Cursor, Write};
@@ -35,7 +35,7 @@ impl Multikey {
     }
 
     /// Parses a
-    /// [legacy encoding](https://spec.scuttlebutt.nz/datatypes.html#multikey-legacy-encoding)
+    /// [legacy encoding](https://spec.scuttlebutt.nz/feed/datatypes.html#multikey-legacy-encoding)
     /// into a `Multikey`, also returning the remaining input on success.
     pub fn from_legacy(mut s: &[u8]) -> Result<(Multikey, &[u8]), DecodeLegacyError> {
         s = skip_prefix(s, b"@").ok_or(DecodeLegacyError::Sigil)?;
@@ -56,7 +56,7 @@ impl Multikey {
             return Err(DecodeLegacyError::Ed25519WrongSize);
         }
 
-        let mut dec_data = [0u8; 32];
+        let mut dec_data = [0_u8; 32];
 
         base64::decode_config_slice(data, base64::STANDARD, &mut dec_data)
             .map_err(|_| DecodeLegacyError::InvalidBase64)
@@ -64,7 +64,7 @@ impl Multikey {
     }
 
     /// Serialize a `Multikey` into a writer, using the
-    /// [legacy encoding](https://spec.scuttlebutt.nz/datatypes.html#multikey-legacy-encoding).
+    /// [legacy encoding](https://spec.scuttlebutt.nz/feed/datatypes.html#multikey-legacy-encoding).
     pub fn to_legacy<W: Write>(&self, w: &mut W) -> Result<(), io::Error> {
         match self {
             Multikey::Ed25519(ref pk) => {
@@ -80,7 +80,7 @@ impl Multikey {
     }
 
     /// Serialize a `Multikey` into an owned byte vector, using the
-    /// [legacy encoding](https://spec.scuttlebutt.nz/datatypes.html#multikey-legacy-encoding).
+    /// [legacy encoding](https://spec.scuttlebutt.nz/feed/datatypes.html#multikey-legacy-encoding).
     pub fn to_legacy_vec(&self) -> Vec<u8> {
         let mut data = vec![];
         self.to_legacy(&mut data).unwrap();
@@ -88,7 +88,7 @@ impl Multikey {
     }
 
     /// Serialize a `Multikey` into an owned string, using the
-    /// [legacy encoding](https://spec.scuttlebutt.nz/datatypes.html#multikey-legacy-encoding).
+    /// [legacy encoding](https://spec.scuttlebutt.nz/feed/datatypes.html#multikey-legacy-encoding).
     pub fn to_legacy_string(&self) -> String {
         String::from_utf8(self.to_legacy_vec()).unwrap()
     }
@@ -129,7 +129,7 @@ pub enum DecodeLegacyError {
     Sigil,
     /// Input did not contain a `"."` to separate the data from the suffix.
     NoDot,
-    /// Invalid utf8 string
+    /// Invalid utf8 string.
     InvalidUTF8,
     /// The base64 portion of the key was invalid.
     InvalidBase64,
@@ -154,13 +154,13 @@ impl fmt::Display for DecodeLegacyError {
 
 impl std::error::Error for DecodeLegacyError {}
 
-/// The secret counterpart to Multikey
+/// The secret counterpart to Multikey.
 #[derive(Debug, Clone)]
 pub struct Multisecret(Keypair);
 
 impl Multisecret {
     /// Parses a
-    /// [legacy encoding](https://spec.scuttlebutt.nz/datatypes.html#multikey-legacy-encoding)
+    /// [legacy encoding](https://spec.scuttlebutt.nz/feed/datatypes.html#multikey-legacy-encoding)
     /// into a `Multisecret`, also returning the remaining input on success.
     pub fn from_legacy(s: &[u8]) -> Result<(Multisecret, &[u8]), DecodeLegacyError> {
         let (data, suffix) = split_at_byte(s, 0x2E).ok_or(DecodeLegacyError::NoDot)?;
@@ -175,7 +175,7 @@ impl Multisecret {
     }
 
     /// Serialize a `Multisecret` into a writer, using the
-    /// [legacy encoding](https://spec.scuttlebutt.nz/datatypes.html#multikey-legacy-encoding).
+    /// [legacy encoding](https://spec.scuttlebutt.nz/feed/datatypes.html#multikey-legacy-encoding).
     pub fn to_legacy<W: Write>(&self, w: &mut W) -> Result<(), io::Error> {
         let data = self.0.as_base64();
         w.write_all(data.as_bytes())?;
@@ -189,7 +189,7 @@ impl Serialize for Multisecret {
     where
         S: Serializer,
     {
-        let mut s = [0u8; SSB_ED25519_SECRET_ENCODED_LEN];
+        let mut s = [0_u8; SSB_ED25519_SECRET_ENCODED_LEN];
         self.to_legacy(&mut Cursor::new(&mut s[..])).unwrap();
         serializer.serialize_str(std::str::from_utf8(&s).unwrap())
     }
@@ -236,7 +236,7 @@ impl PartialEq for _Multisig {
 impl Eq for _Multisig {}
 
 impl Multikey {
-    /// Deserialize a legacy signature corrsponding to this key type.
+    /// Deserialize a legacy signature corresponding to this key type.
     pub fn sig_from_legacy<'a>(
         &self,
         s: &'a [u8],
@@ -258,7 +258,7 @@ impl Multikey {
                     return Err(DecodeSignatureError::Ed25519WrongSize);
                 }
 
-                let mut dec_data = [0u8; 64];
+                let mut dec_data = [0_u8; 64];
 
                 base64::decode_config_slice(data, base64::STANDARD, &mut dec_data[..])
                     .map_err(DecodeSignatureError::InvalidBase64)
@@ -275,7 +275,7 @@ impl Multisig {
     }
 
     /// Serialize a signature into a writer, in the appropriate
-    /// form for a [legacy message](https://spec.scuttlebutt.nz/messages.html#legacy-json-encoding).
+    /// form for a [legacy message](https://spec.scuttlebutt.nz/feed/messages.html#legacy-json-encoding).
     pub fn to_legacy<W: Write>(&self, w: &mut W) -> Result<(), io::Error> {
         match self.0 {
             _Multisig::Ed25519(ref sig) => {
@@ -288,7 +288,7 @@ impl Multisig {
 
     /// Serialize a signature into an owned byte vector,
     /// in the appropriate form for a
-    /// [legacy message](https://spec.scuttlebutt.nz/messages.html#legacy-json-encoding).
+    /// [legacy message](https://spec.scuttlebutt.nz/feed/messages.html#legacy-json-encoding).
     pub fn to_legacy_vec(&self) -> Vec<u8> {
         let mut data = vec![];
         self.to_legacy(&mut data).unwrap();
@@ -297,7 +297,7 @@ impl Multisig {
 
     /// Serialize a signature into an owned string,
     /// in the appropriate form for a
-    /// [legacy message](https://spec.scuttlebutt.nz/messages.html#legacy-json-encoding).
+    /// [legacy message](https://spec.scuttlebutt.nz/feed/messages.html#legacy-json-encoding).
     pub fn to_legacy_string(&self) -> String {
         String::from_utf8(self.to_legacy_vec()).unwrap()
     }

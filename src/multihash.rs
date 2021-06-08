@@ -1,4 +1,4 @@
-//! Implementation of [ssb multihashes](https://spec.scuttlebutt.nz/datatypes.html#multihash).
+//! Implementation of [ssb multihashes](https://spec.scuttlebutt.nz/feed/datatypes.html#multihash).
 use std::fmt;
 use std::io::{self, Write};
 
@@ -7,12 +7,12 @@ use serde::{
     ser::{Serialize, Serializer},
 };
 
-use super::*;
+use super::{base64, serde, skip_prefix, split_at_byte};
 
 /// A multihash that owns its data.
 #[derive(Debug, PartialEq, Eq, Clone, PartialOrd, Ord, Hash)]
 pub enum Multihash {
-    /// An ssb [message](https://spec.scuttlebutt.nz/messages.html).
+    /// An ssb [message](https://spec.scuttlebutt.nz/feed/messages.html).
     Message([u8; 32]),
     /// An ssb [blob](TODO).
     Blob([u8; 32]),
@@ -25,7 +25,7 @@ enum Target {
 
 impl Multihash {
     /// Parses a
-    /// [legacy encoding](https://spec.scuttlebutt.nz/datatypes.html#multihash-legacy-encoding)
+    /// [legacy encoding](https://spec.scuttlebutt.nz/feed/datatypes.html#multihash-legacy-encoding)
     /// into a `Multihash`.
     pub fn from_legacy(mut s: &[u8]) -> Result<(Multihash, &[u8]), DecodeLegacyError> {
         let target;
@@ -56,7 +56,7 @@ impl Multihash {
             return Err(DecodeLegacyError::Sha256WrongSize);
         }
 
-        let mut dec_data = [0u8; 32];
+        let mut dec_data = [0_u8; 32];
         base64::decode_config_slice(data, base64::STANDARD, &mut dec_data[..])
             .map_err(DecodeLegacyError::InvalidBase64)
             .map(|_| {
@@ -69,7 +69,7 @@ impl Multihash {
     }
 
     /// Serialize a `Multihash` into a writer, using the
-    /// [legacy encoding](https://spec.scuttlebutt.nz/datatypes.html#multihash-legacy-encoding).
+    /// [legacy encoding](https://spec.scuttlebutt.nz/feed/datatypes.html#multihash-legacy-encoding).
     pub fn to_legacy<W: Write>(&self, w: &mut W) -> Result<(), io::Error> {
         match self {
             Multihash::Message(ref bytes) => {
@@ -92,7 +92,7 @@ impl Multihash {
     }
 
     /// Serialize a `Multihash` into an owned byte vector, using the
-    /// [legacy encoding](https://spec.scuttlebutt.nz/datatypes.html#multihash-legacy-encoding).
+    /// [legacy encoding](https://spec.scuttlebutt.nz/feed/datatypes.html#multihash-legacy-encoding).
     pub fn to_legacy_vec(&self) -> Vec<u8> {
         let mut out = Vec::with_capacity(SSB_SHA256_ENCODED_LEN);
         self.to_legacy(&mut out).unwrap();
@@ -100,7 +100,7 @@ impl Multihash {
     }
 
     /// Serialize a `Multihash` into an owned string, using the
-    /// [legacy encoding](https://spec.scuttlebutt.nz/datatypes.html#multihash-legacy-encoding).
+    /// [legacy encoding](https://spec.scuttlebutt.nz/feed/datatypes.html#multihash-legacy-encoding).
     pub fn to_legacy_string(&self) -> String {
         unsafe { String::from_utf8_unchecked(self.to_legacy_vec()) }
     }
