@@ -1,6 +1,6 @@
 [package]
 name = "ssb-multiformats"
-version = "0.4.1"
+version = "0.4.2"
 authors = ["AljoschaMeyer <mail@aljoscha-meyer.de>"]
 edition = "2018"
 license = "LGPL-3.0"
@@ -13,7 +13,7 @@ keywords = ["ssb", "scuttlebutt"]
 [dependencies]
 base64 = "0.13.0"
 serde = "1.0.126"
-ssb-crypto = {version = "0.2.2", default_features = false}
+ssb-crypto = {version = "0.2.3", default_features = false}
 
 [dev-dependencies]
 matches = "0.1.8"
